@@ -1732,4 +1732,4 @@ MakeDraggableAndClickable(openBtn, function()
 end)
 
 print("✅ EVIL - CARGADO COMPLETO (CON GLITCH)")
-print("📌 Pestañas: COMBATE | GLITCH | SORU | APPEARANCE | MISC"
+print("📌 Pestañas: COMBATE | GLITCH | SORU | APPEARANCE | MISC")
