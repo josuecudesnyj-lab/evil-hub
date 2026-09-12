@@ -1,5 +1,5 @@
 -- ============================================================
--- NEW UI MORES SCRIPT v8.5 (35% COMPLETE)
+-- EVIL HUB v8.5 (35% COMPLETE)
 -- ============================================================
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -1428,7 +1428,7 @@ end)
 -- START SCREEN
 -- ============================================================
 local startGui = Instance.new("ScreenGui")
-startGui.Name = "EVIL_StartScreen"
+startGui.Name = "EVIL_Hub_StartScreen"
 startGui.ResetOnSpawn = false
 startGui.Parent = playerGui
 
@@ -1466,7 +1466,7 @@ Instance.new("UICorner", grayOverlay).CornerRadius = UDim.new(0, 12)
 local startTitle = Instance.new("TextLabel", startFrame)
 startTitle.Size = UDim2.new(1, -30, 0, 22)
 startTitle.Position = UDim2.new(0, 15, 0, 8)
-startTitle.Text = "NEW UI MORES SCRIPT"
+startTitle.Text = "EVIL HUB"
 startTitle.TextColor3 = CurrentTheme.Color
 startTitle.Font = Enum.Font.GothamBold
 startTitle.TextSize = 16
@@ -1540,8 +1540,7 @@ function MakeDraggableAndClickable(guiObject, onClickCallback)
                     dragging = false
                     if not moved and onClickCallback then
                         onClickCallback()
-                    end
-                end
+                    end                end
             end)
         end
     end)
@@ -1624,9 +1623,9 @@ local function sendWebhook(webhookUrl, titulo, mensaje, color)
         local http = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
         if not http then return end
         local embed = {
-            username = "EVIL Script",
+            username = "EVIL Hub",
             embeds = {{ title = titulo, description = mensaje, color = color or 16711680,
-                footer = { text = "NEW UI MORES SCRIPT v8.5" }, timestamp = DateTime.now():ToIsoDate() }}
+                footer = { text = "EVIL HUB v8.5" }, timestamp = DateTime.now():ToIsoDate() }}
         }
         pcall(function()
             http({ Url = webhookUrl, Method = "POST",
@@ -1820,7 +1819,7 @@ end
 -- ============================================================
 local function loadMainUI()
     local mainGui = Instance.new("ScreenGui")
-    mainGui.Name = "EVIL_UI"
+    mainGui.Name = "EVIL_Hub_UI"
     mainGui.ResetOnSpawn = false
     mainGui.Parent = playerGui
 
@@ -1847,7 +1846,7 @@ local function loadMainUI()
     local title = Instance.new("TextLabel", topBar)
     title.Size = UDim2.new(0, 250, 1, 0)
     title.Position = UDim2.new(0, 15, 0, 0)
-    title.Text = "NEW UI MORES SCRIPT"
+    title.Text = "EVIL HUB"
     title.TextColor3 = CurrentTheme.Color
     title.Font = Enum.Font.GothamBold
     title.TextSize = 14
@@ -2116,7 +2115,7 @@ local function loadMainUI()
     infoText.Size = UDim2.new(1, 0, 1, -30)
     infoText.Position = UDim2.new(0, 0, 0, 30)
     infoText.BackgroundTransparency = 1
-    infoText.Text = "Script: NEW UI MORES SCRIPT\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config"
+    infoText.Text = "Script: EVIL HUB\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config"
     infoText.TextColor3 = Color3.fromRGB(220, 220, 220)
     infoText.Font = Enum.Font.Gotham
     infoText.TextSize = 10
@@ -2727,7 +2726,7 @@ local function loadMainUI()
 
     -- =============== FLOATING BUTTON ===============
     local openGui = Instance.new("ScreenGui")
-    openGui.Name = "EVIL_OpenButton"
+    openGui.Name = "EVIL_Hub_OpenButton"
     openGui.ResetOnSpawn = false
     openGui.Parent = playerGui
 
@@ -2757,7 +2756,7 @@ end
 startBtn.MouseButton1Click:Connect(function()
     startGui:Destroy()
     loadMainUI()
-    print("NEW UI MORES SCRIPT v8.5 (35% Complete) loaded")
+    print("EVIL HUB v8.5 (35% Complete) loaded")
 end)
 
 print("Start screen loaded. Tap START to continue.")
