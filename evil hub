@@ -22,6 +22,10 @@ local ICONS = {
     FLOAT_BTN = "rbxassetid://130132532199776",
     FONDO = "rbxassetid://108276266546489",
     START_IMG = "rbxassetid://98268207992565",
+    BUG = "rbxassetid://127139193359807",
+    SUGGESTION = "rbxassetid://128625030106341",
+    INFO = "rbxassetid://99812112740349",
+    APPEARANCE = "rbxassetid://82112546214169",
 }
 
 local WEBHOOK_REPORT = "https://discord.com/api/webhooks/1548369588973080690/pcES_LuuIeYoNjkiVHvvBOXXpaoy64EjyKRJy04xsqwXaIOWcuTGu3egVvGcXldpC0a4"
@@ -1540,7 +1544,8 @@ function MakeDraggableAndClickable(guiObject, onClickCallback)
                     dragging = false
                     if not moved and onClickCallback then
                         onClickCallback()
-                    end                end
+                    end
+                end
             end)
         end
     end)
@@ -1616,6 +1621,29 @@ local function createGrayOverlay(parent)
     overlay.ZIndex = 1
     Instance.new("UICorner", overlay).CornerRadius = UDim.new(0, 8)
     return overlay
+end
+
+-- Helper: agrega icono + texto a un TextButton existente
+local function addIconToButton(btn, iconId, text)
+    btn.Text = ""
+    local icon = Instance.new("ImageLabel", btn)
+    icon.Size = UDim2.new(0, 14, 0, 14)
+    icon.Position = UDim2.new(0, 6, 0.5, -7)
+    icon.BackgroundTransparency = 1
+    icon.Image = iconId
+    icon.ScaleType = Enum.ScaleType.Fit
+    icon.ZIndex = (btn.ZIndex or 1) + 1
+    local label = Instance.new("TextLabel", btn)
+    label.Size = UDim2.new(1, -24, 1, 0)
+    label.Position = UDim2.new(0, 22, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 9
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = (btn.ZIndex or 1) + 1
+    return icon, label
 end
 
 local function sendWebhook(webhookUrl, titulo, mensaje, color)
@@ -1922,31 +1950,34 @@ local function loadMainUI()
     local btnBug = Instance.new("TextButton", soporteBtnFrame)
     btnBug.Size = UDim2.new(0.20, 0, 1, 0)
     btnBug.BackgroundColor3 = CurrentTheme.Color
-    btnBug.Text = "BUG"
-    btnBug.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnBug.Text = ""
+    btnBug.BorderSizePixel = 0
     btnBug.Font = Enum.Font.GothamBold
     btnBug.TextSize = 9
     Instance.new("UICorner", btnBug).CornerRadius = UDim.new(0, 6)
+    addIconToButton(btnBug, ICONS.BUG, "BUG")
 
     local btnSuggest = Instance.new("TextButton", soporteBtnFrame)
-    btnSuggest.Size = UDim2.new(0.22, 0, 1, 0)
-    btnSuggest.Position = UDim2.new(0.22, 0, 0, 0)
+    btnSuggest.Size = UDim2.new(0.24, 0, 1, 0)
+    btnSuggest.Position = UDim2.new(0.21, 0, 0, 0)
     btnSuggest.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-    btnSuggest.Text = "SUGGESTION"
-    btnSuggest.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btnSuggest.Text = ""
+    btnSuggest.BorderSizePixel = 0
     btnSuggest.Font = Enum.Font.GothamBold
     btnSuggest.TextSize = 9
     Instance.new("UICorner", btnSuggest).CornerRadius = UDim.new(0, 6)
+    addIconToButton(btnSuggest, ICONS.SUGGESTION, "SUGGESTION")
 
     local btnInfo = Instance.new("TextButton", soporteBtnFrame)
-    btnInfo.Size = UDim2.new(0.22, 0, 1, 0)
+    btnInfo.Size = UDim2.new(0.20, 0, 1, 0)
     btnInfo.Position = UDim2.new(0.46, 0, 0, 0)
     btnInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-    btnInfo.Text = "INFO"
-    btnInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btnInfo.Text = ""
+    btnInfo.BorderSizePixel = 0
     btnInfo.Font = Enum.Font.GothamBold
     btnInfo.TextSize = 9
     Instance.new("UICorner", btnInfo).CornerRadius = UDim.new(0, 6)
+    addIconToButton(btnInfo, ICONS.INFO, "INFO")
 
     local soporteContentFrame = Instance.new("Frame", soporteContent)
     soporteContentFrame.Size = UDim2.new(1, 0, 1, -34)
@@ -2115,7 +2146,7 @@ local function loadMainUI()
     infoText.Size = UDim2.new(1, 0, 1, -30)
     infoText.Position = UDim2.new(0, 0, 0, 30)
     infoText.BackgroundTransparency = 1
-    infoText.Text = "Script: EVIL HUB\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config"
+    infoText.Text = "Script: EVIL HUB\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config\n- Icons added to tabs"
     infoText.TextColor3 = Color3.fromRGB(220, 220, 220)
     infoText.Font = Enum.Font.Gotham
     infoText.TextSize = 10
@@ -2129,13 +2160,9 @@ local function loadMainUI()
         infoContent.Visible = false
         panel.Visible = true
         btnBug.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        btnBug.TextColor3 = Color3.fromRGB(200, 200, 200)
         btnSuggest.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        btnSuggest.TextColor3 = Color3.fromRGB(200, 200, 200)
         btnInfo.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        btnInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
         btn.BackgroundColor3 = CurrentTheme.Color
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 
     btnBug.MouseButton1Click:Connect(function() switchSoporteTab(bugContent, btnBug) end)
@@ -2383,23 +2410,25 @@ local function loadMainUI()
     local btnAppearance = Instance.new("TextButton", settingsBtnFrame)
     btnAppearance.Size = UDim2.new(0.30, 0, 1, 0)
     btnAppearance.BackgroundColor3 = CurrentTheme.Color
-    btnAppearance.Text = "APPEARANCE"
-    btnAppearance.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnAppearance.Text = ""
+    btnAppearance.BorderSizePixel = 0
     btnAppearance.Font = Enum.Font.GothamBold
     btnAppearance.TextSize = 9
     btnAppearance.ZIndex = 4
     Instance.new("UICorner", btnAppearance).CornerRadius = UDim.new(0, 6)
+    addIconToButton(btnAppearance, ICONS.APPEARANCE, "APPEARANCE")
 
     local btnThemeConfig = Instance.new("TextButton", settingsBtnFrame)
     btnThemeConfig.Size = UDim2.new(0.30, 0, 1, 0)
     btnThemeConfig.Position = UDim2.new(0.31, 0, 0, 0)
     btnThemeConfig.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-    btnThemeConfig.Text = "SETTINGS"
-    btnThemeConfig.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btnThemeConfig.Text = ""
+    btnThemeConfig.BorderSizePixel = 0
     btnThemeConfig.Font = Enum.Font.GothamBold
     btnThemeConfig.TextSize = 9
     btnThemeConfig.ZIndex = 4
     Instance.new("UICorner", btnThemeConfig).CornerRadius = UDim.new(0, 6)
+    addIconToButton(btnThemeConfig, ICONS.SETTINGS, "SETTINGS")
 
     local settingsContentFrame = Instance.new("Frame", settingsContent)
     settingsContentFrame.Size = UDim2.new(1, 0, 1, -34)
@@ -2682,11 +2711,8 @@ local function loadMainUI()
         themeContent.Visible = false
         panel.Visible = true
         btnAppearance.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        btnAppearance.TextColor3 = Color3.fromRGB(200, 200, 200)
         btnThemeConfig.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-        btnThemeConfig.TextColor3 = Color3.fromRGB(200, 200, 200)
         btn.BackgroundColor3 = CurrentTheme.Color
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 
     btnAppearance.MouseButton1Click:Connect(function() switchSettingsTab(appearanceContent, btnAppearance) end)
