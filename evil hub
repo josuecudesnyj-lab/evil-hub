@@ -1,5 +1,5 @@
 -- ============================================================
--- EVIL HUB v8.5 (35% COMPLETE)
+-- EVIL HUB v8.5 (35% COMPLETE) - FIXED
 -- ============================================================
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -50,6 +50,7 @@ local CurrentTheme = {
     Name = "Red",
     Color = ThemeColors.Red,
     IsCustom = false,
+    LastNonRGBName = "Red",
 }
 
 local ThemeListeners = {}
@@ -102,40 +103,60 @@ end
 
 local SAVE_FILE = "EVIL_ThemeConfig.json"
 
+-- Detectar funciones de archivo disponibles (compatibilidad con todos los executors)
+local _writefile = writefile or write_file
+local _readfile  = readfile  or read_file
+local _isfile    = isfile    or is_file
+local _delfile   = delfile   or del_file
+
 local function SaveThemeConfig()
-    pcall(function()
-        local data = {
-            Name = CurrentTheme.Name,
-            R = math.floor(CurrentTheme.Color.R * 255),
-            G = math.floor(CurrentTheme.Color.G * 255),
-            B = math.floor(CurrentTheme.Color.B * 255),
-            IsCustom = CurrentTheme.IsCustom,
-        }
-        if writefile then writefile(SAVE_FILE, HttpService:JSONEncode(data)) end
-    end)
+    local data = {
+        Name = CurrentTheme.Name,
+        R = math.floor(CurrentTheme.Color.R * 255),
+        G = math.floor(CurrentTheme.Color.G * 255),
+        B = math.floor(CurrentTheme.Color.B * 255),
+        IsCustom = CurrentTheme.IsCustom,
+    }
+    local encoded = HttpService:JSONEncode(data)
+    if _writefile then
+        local ok, err = pcall(_writefile, SAVE_FILE, encoded)
+        if ok then
+            print("[EVIL] Config guardada correctamente.")
+        else
+            warn("[EVIL] Error guardando config:", err)
+        end
+    else
+        warn("[EVIL] Este executor no tiene writefile/write_file.")
+    end
 end
 
 local function LoadThemeConfig()
-    pcall(function()
-        if isfile and isfile(SAVE_FILE) and readfile then
-            local raw = readfile(SAVE_FILE)
-            local data = HttpService:JSONDecode(raw)
-            if data and data.R and data.G and data.B then
-                CurrentTheme.Name = data.Name or "Custom"
-                CurrentTheme.Color = Color3.fromRGB(data.R, data.G, data.B)
-                CurrentTheme.IsCustom = data.IsCustom or false
-            end
-        end
-    end)
+    if not (_isfile and _readfile) then return end
+    local exists = false
+    pcall(function() exists = _isfile(SAVE_FILE) end)
+    if not exists then return end
+    local raw
+    pcall(function() raw = _readfile(SAVE_FILE) end)
+    if not raw or raw == "" then return end
+    local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if ok and data and data.R and data.G and data.B then
+        CurrentTheme.Name = data.Name or "Custom"
+        CurrentTheme.Color = Color3.fromRGB(data.R, data.G, data.B)
+        CurrentTheme.IsCustom = data.IsCustom or false
+        CurrentTheme.LastNonRGBName = data.Name or "Red"
+    end
 end
 
 local function ResetThemeConfig()
     CurrentTheme.Name = "Red"
     CurrentTheme.Color = ThemeColors.Red
     CurrentTheme.IsCustom = false
-    pcall(function()
-        if delfile and isfile and isfile(SAVE_FILE) then delfile(SAVE_FILE) end
-    end)
+    CurrentTheme.LastNonRGBName = "Red"
+    if _delfile then
+        pcall(function()
+            if _isfile and _isfile(SAVE_FILE) then _delfile(SAVE_FILE) end
+        end)
+    end
     for _, fn in ipairs(ThemeListeners) do pcall(fn, CurrentTheme.Color) end
 end
 
@@ -505,7 +526,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ============================================================
--- DRAGON M1 MACRO
+-- DRAGON M1 MACRO (FIXED - SÍ DAÑA)
 -- ============================================================
 local DragonModules = ReplicatedStorage:WaitForChild("Modules")
 local DragonNet = DragonModules:WaitForChild("Net")
@@ -562,56 +583,109 @@ local function GetNextValidator()
     return math.floor(v9 / v4 * 16777215), v7
 end
 
+-- Target: prioriza enemigos con hitbox válida
 local function GetClosestDragonTarget()
     local char = player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
-    local closest, dist = nil, math.huge
+    if not root then return nil, nil end
+    local closest, closestHum, dist = nil, nil, math.huge
     local myPos = root.Position
+
     if _G.G_AttackMobs then
         local enemies = workspace:FindFirstChild("Enemies")
         if enemies then
             for _, enemy in pairs(enemies:GetChildren()) do
                 local hum = enemy:FindFirstChildOfClass("Humanoid")
                 local r = enemy:FindFirstChild("HumanoidRootPart")
-                if hum and hum.Health > 0 and r then
-                    local d = (r.Position - myPos).Magnitude
-                    if d < dist then dist = d; closest = r end
+                local head = enemy:FindFirstChild("Head")
+                if hum and hum.Health > 0 and (r or head) then
+                    local part = head or r
+                    local d = (part.Position - myPos).Magnitude
+                    if d < dist then
+                        dist = d
+                        closest = part
+                        closestHum = hum
+                    end
                 end
             end
         end
     end
+
     if _G.G_AttackPlayers then
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= player and p.Character then
                 local hum = p.Character:FindFirstChildOfClass("Humanoid")
                 local r = p.Character:FindFirstChild("HumanoidRootPart")
-                if hum and hum.Health > 0 and r then
-                    local d = (r.Position - myPos).Magnitude
-                    if d < dist then dist = d; closest = r end
+                local head = p.Character:FindFirstChild("Head")
+                if hum and hum.Health > 0 and (r or head) then
+                    local part = head or r
+                    local d = (part.Position - myPos).Magnitude
+                    if d < dist then
+                        dist = d
+                        closest = part
+                        closestHum = hum
+                    end
                 end
             end
         end
     end
-    return closest
+
+    return closest, closestHum
+end
+
+-- Función que hace el hit real (RegisterHit + ShootGun)
+local function FireGunAt(targetPart)
+    if not targetPart then return end
+    local char = player.Character
+    if not char then return end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+
+    -- 1) Validator (anti-cheat)
+    local code, count = GetNextValidator()
+    if code ~= 0 then
+        pcall(function() Validator2:FireServer(code, count) end)
+    end
+
+    -- 2) Reset overheat local
+    pcall(function()
+        tool:SetAttribute("LocalOverheat", 0)
+        tool:SetAttribute("LocalTotalShots", (tool:GetAttribute("LocalTotalShots") or 0) + 1)
+    end)
+
+    -- 3) Disparar el evento con los argumentos correctos
+    local targetPos = targetPart.Position
+    pcall(function()
+        ShootGunEvent:FireServer(targetPos, {targetPart})
+    end)
+
+    -- 4) Registrar hit directo (para que cuente daño)
+    local registerHit = Net:FindFirstChild("RE/RegisterHit")
+    if registerHit then
+        local hum = targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("Humanoid")
+        local hrp = targetPart.Parent and targetPart.Parent:FindFirstChild("HumanoidRootPart")
+        if hum and hrp then
+            pcall(function()
+                registerHit:FireServer(targetPart, {{targetPart.Parent, hrp}, targetPart.Parent}, nil, "078da5141")
+            end)
+        end
+    end
+
+    -- 5) Activate del tool (por si el juego lo requiere)
+    pcall(function() tool:Activate() end)
 end
 
 task.spawn(function()
-    while true do
-        task.wait(0.085)
+    while task.wait(0.08) do
         if _G.G_DragonGunM1 then
             pcall(function()
                 local char = player.Character
                 if not char then return end
                 local tool = char:FindFirstChildOfClass("Tool")
                 if not tool or tool.ToolTip ~= "Gun" then return end
-                local target = GetClosestDragonTarget()
-                if not target then return end
-                local code, count = GetNextValidator()
-                if code ~= 0 then Validator2:FireServer(code, count) end
-                tool:SetAttribute("LocalOverheat", 0)
-                tool:SetAttribute("LocalTotalShots", (tool:GetAttribute("LocalTotalShots") or 0) + 1)
-                ShootGunEvent:FireServer(target.Position, { target })
+                local targetPart = GetClosestDragonTarget()
+                if not targetPart then return end
+                FireGunAt(targetPart)
             end)
         end
     end
@@ -1623,7 +1697,6 @@ local function createGrayOverlay(parent)
     return overlay
 end
 
--- Helper: agrega icono + texto a un TextButton existente
 local function addIconToButton(btn, iconId, text)
     btn.Text = ""
     local icon = Instance.new("ImageLabel", btn)
