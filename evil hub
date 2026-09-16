@@ -1,5 +1,5 @@
 -- ============================================================
--- EVIL HUB v8.5 (35% COMPLETE) - FIXED
+-- EVIL HUB v8.5 (35% COMPLETE) - FIXED + FPS/PING
 -- ============================================================
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -9,6 +9,7 @@ local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
 local camera = workspace.CurrentCamera
 
 local ICONS = {
@@ -193,6 +194,124 @@ local korbloxMeshes = {}
 -- MISC VARIABLES
 -- ============================================================
 _G.AutoKen = false
+
+-- ============================================================
+-- FPS / PING MONITOR
+-- ============================================================
+_G.FPSPingMonitorEnabled = false
+local fpsMonitorGui = nil
+
+local function CreateFPSPingMonitor()
+    if fpsMonitorGui then return end
+
+    fpsMonitorGui = Instance.new("ScreenGui")
+    fpsMonitorGui.Name = "DinosMonitor"
+    fpsMonitorGui.ResetOnSpawn = false
+    fpsMonitorGui.IgnoreGuiInset = true
+    fpsMonitorGui.DisplayOrder = 999
+    if gethui then
+        fpsMonitorGui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(fpsMonitorGui)
+        fpsMonitorGui.Parent = CoreGui
+    else
+        fpsMonitorGui.Parent = CoreGui
+    end
+
+    local monitor = Instance.new("Frame")
+    monitor.Size = UDim2.new(0, 105, 0, 30)
+    monitor.Position = UDim2.new(0.5, -180, 0, 10)
+    monitor.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    monitor.BorderSizePixel = 0
+    monitor.Active = false
+    monitor.Draggable = false
+    monitor.Visible = true
+    monitor.ZIndex = 9999
+    monitor.Parent = fpsMonitorGui
+    Instance.new("UICorner", monitor).CornerRadius = UDim.new(0, 8)
+
+    local stroke = Instance.new("UIStroke", monitor)
+    stroke.Color = Color3.fromRGB(90, 200, 120)
+    stroke.Thickness = 1.5
+
+    local fpsLbl = Instance.new("TextLabel")
+    fpsLbl.Size = UDim2.new(1, -8, 0, 12)
+    fpsLbl.Position = UDim2.new(0, 4, 0, 3)
+    fpsLbl.BackgroundTransparency = 1
+    fpsLbl.Text = "FPS: --"
+    fpsLbl.TextColor3 = Color3.fromRGB(90, 255, 120)
+    fpsLbl.TextSize = 10
+    fpsLbl.Font = Enum.Font.GothamBold
+    fpsLbl.TextXAlignment = Enum.TextXAlignment.Center
+    fpsLbl.TextStrokeTransparency = 0
+    fpsLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    fpsLbl.ZIndex = 10000
+    fpsLbl.Parent = monitor
+
+    local pingLbl = Instance.new("TextLabel")
+    pingLbl.Size = UDim2.new(1, -8, 0, 12)
+    pingLbl.Position = UDim2.new(0, 4, 0, 15)
+    pingLbl.BackgroundTransparency = 1
+    pingLbl.Text = "PING: -- ms"
+    pingLbl.TextColor3 = Color3.fromRGB(90, 255, 120)
+    pingLbl.TextSize = 10
+    pingLbl.Font = Enum.Font.GothamBold
+    pingLbl.TextXAlignment = Enum.TextXAlignment.Center
+    pingLbl.TextStrokeTransparency = 0
+    pingLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    pingLbl.ZIndex = 10000
+    pingLbl.Parent = monitor
+
+    -- FPS
+    local fpsCount = 0
+    local lastTime = tick()
+    RunService.RenderStepped:Connect(function()
+        if not _G.FPSPingMonitorEnabled then return end
+        fpsCount = fpsCount + 1
+        local now = tick()
+        if now - lastTime >= 0.5 then
+            local fps = math.floor(fpsCount / (now - lastTime))
+            fpsCount = 0
+            lastTime = now
+            local color = Color3.fromRGB(90, 255, 120)
+            if fps < 30 then
+                color = Color3.fromRGB(255, 70, 70)
+            elseif fps < 50 then
+                color = Color3.fromRGB(255, 200, 60)
+            end
+            fpsLbl.Text = "FPS: " .. fps
+            fpsLbl.TextColor3 = color
+        end
+    end)
+
+    -- PING
+    task.spawn(function()
+        while fpsMonitorGui do
+            task.wait(0.5)
+            if _G.FPSPingMonitorEnabled then
+                local ping = 0
+                pcall(function()
+                    ping = math.floor(player:GetNetworkPing() * 1000)
+                end)
+                local pingColor = Color3.fromRGB(90, 255, 120)
+                if ping > 200 then
+                    pingColor = Color3.fromRGB(255, 70, 70)
+                elseif ping > 100 then
+                    pingColor = Color3.fromRGB(255, 200, 60)
+                end
+                pingLbl.Text = "PING: " .. ping .. " ms"
+                pingLbl.TextColor3 = pingColor
+            end
+        end
+    end)
+end
+
+local function DestroyFPSPingMonitor()
+    if fpsMonitorGui then
+        fpsMonitorGui:Destroy()
+        fpsMonitorGui = nil
+    end
+end
 
 -- ============================================================
 -- SORU VARIABLES
@@ -525,7 +644,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ============================================================
--- DRAGON M1 MACRO (FIXED - SÍ DAÑA)
+-- DRAGON M1 MACRO (FIXED)
 -- ============================================================
 local DragonModules = ReplicatedStorage:WaitForChild("Modules")
 local DragonNet = DragonModules:WaitForChild("Net")
@@ -703,7 +822,6 @@ task.spawn(function()
 
                 local closest, shortest = nil, 60
 
-                -- 1) NPCs en workspace.Enemies
                 local enemies = workspace:FindFirstChild("Enemies")
                 if enemies then
                     for _, enemy in pairs(enemies:GetChildren()) do
@@ -721,18 +839,15 @@ task.spawn(function()
                     end
                 end
 
-                -- 2) JUGADORES enemigos (FIX)
                 for _, p in pairs(Players:GetPlayers()) do
                     if p ~= player and p.Character then
                         local hum = p.Character:FindFirstChildOfClass("Humanoid")
                         local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Head")
                         if hum and hum.Health > 0 and root then
-                            -- Team check: no atacar aliados
                             local isAlly = false
                             if player.Team and p.Team and player.Team == p.Team then
                                 isAlly = true
                             end
-                            -- Detección de allies por UI del juego
                             pcall(function()
                                 local main = player.PlayerGui:FindFirstChild("Main")
                                 local frame = main
@@ -757,7 +872,6 @@ task.spawn(function()
                     end
                 end
 
-                -- 3) Aplicar hit al objetivo más cercano (NPC o Player)
                 if closest then
                     local head = closest:FindFirstChild("Head") or closest:FindFirstChild("HumanoidRootPart")
                     local hrp = closest:FindFirstChild("HumanoidRootPart")
@@ -1614,10 +1728,10 @@ startSep.ZIndex = 3
 
 local warningText = Instance.new("TextLabel", startFrame)
 warningText.Size = UDim2.new(1, -60, 0, 90)
-warningText.Position = UDim2.new(0.5, 0, 0.55, 0)
+warningText.Position = UDim2.new(0.5, 0, 0.50, 0)
 warningText.AnchorPoint = Vector2.new(0.5, 0.5)
 warningText.BackgroundTransparency = 1
-warningText.Text = "This script is in testing phase.\nIf you find any errors or bugs,\nplease report them to the official Discord\nor send a report from Support.\n\nScript Version: 8.5\nProgress: 35% Complete"
+warningText.Text = "This script is in testing phase.\nIf you find any errors or bugs,\nplease report them to the official Discord\nor send a report from Support.\n\nScript Version: 8.5\nProgress: 35% Complete\n\n✨ Features:\n• FPS / Ping Monitor\n• Bug Saved"
 warningText.TextColor3 = Color3.fromRGB(255, 255, 255)
 warningText.Font = Enum.Font.Gotham
 warningText.TextSize = 11
@@ -2259,7 +2373,7 @@ local function loadMainUI()
     infoText.Size = UDim2.new(1, 0, 1, -30)
     infoText.Position = UDim2.new(0, 0, 0, 30)
     infoText.BackgroundTransparency = 1
-    infoText.Text = "Script: EVIL HUB\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config\n- Icons added to tabs"
+    infoText.Text = "Script: EVIL HUB\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config\n- Icons added to tabs\n- FPS / Ping Monitor\n- Bug Saved"
     infoText.TextColor3 = Color3.fromRGB(220, 220, 220)
     infoText.Font = Enum.Font.Gotham
     infoText.TextSize = 10
@@ -2543,12 +2657,25 @@ local function loadMainUI()
     Instance.new("UICorner", btnThemeConfig).CornerRadius = UDim.new(0, 6)
     addIconToButton(btnThemeConfig, ICONS.SETTINGS, "SETTINGS")
 
+    local btnMonitor = Instance.new("TextButton", settingsBtnFrame)
+    btnMonitor.Size = UDim2.new(0.30, 0, 1, 0)
+    btnMonitor.Position = UDim2.new(0.62, 0, 0, 0)
+    btnMonitor.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    btnMonitor.Text = ""
+    btnMonitor.BorderSizePixel = 0
+    btnMonitor.Font = Enum.Font.GothamBold
+    btnMonitor.TextSize = 9
+    btnMonitor.ZIndex = 4
+    Instance.new("UICorner", btnMonitor).CornerRadius = UDim.new(0, 6)
+    addIconToButton(btnMonitor, ICONS.INFO, "MONITOR")
+
     local settingsContentFrame = Instance.new("Frame", settingsContent)
     settingsContentFrame.Size = UDim2.new(1, 0, 1, -34)
     settingsContentFrame.Position = UDim2.new(0, 0, 0, 34)
     settingsContentFrame.BackgroundTransparency = 1
     settingsContentFrame.ZIndex = 3
 
+    -- APPEARANCE PANEL
     local appearanceContent = Instance.new("ScrollingFrame", settingsContentFrame)
     appearanceContent.Size = UDim2.new(1, 0, 1, 0)
     appearanceContent.BackgroundTransparency = 1
@@ -2626,6 +2753,51 @@ local function loadMainUI()
         end)
     end
 
+    -- ---- MONITOR PANEL (FPS/PING) ----
+    local monitorContent = Instance.new("ScrollingFrame", settingsContentFrame)
+    monitorContent.Size = UDim2.new(1, 0, 1, 0)
+    monitorContent.BackgroundTransparency = 1
+    monitorContent.BorderSizePixel = 0
+    monitorContent.ScrollBarThickness = 3
+    monitorContent.CanvasSize = UDim2.new(0, 0, 0, 200)
+    monitorContent.Visible = false
+    monitorContent.ZIndex = 3
+
+    local monitorTitle = Instance.new("TextLabel", monitorContent)
+    monitorTitle.Size = UDim2.new(1, 0, 0, 24)
+    monitorTitle.Position = UDim2.new(0, 0, 0, 0)
+    monitorTitle.BackgroundTransparency = 1
+    monitorTitle.Text = "FPS / PING MONITOR"
+    monitorTitle.TextColor3 = Color3.fromRGB(90, 255, 120)
+    monitorTitle.Font = Enum.Font.GothamBold
+    monitorTitle.TextSize = 11
+    monitorTitle.TextXAlignment = Enum.TextXAlignment.Left
+    monitorTitle.ZIndex = 3
+
+    createToggle(monitorContent, "FPS / Ping Monitor",
+        function() return _G.FPSPingMonitorEnabled end,
+        function(v)
+            _G.FPSPingMonitorEnabled = v
+            if v then
+                CreateFPSPingMonitor()
+            else
+                DestroyFPSPingMonitor()
+            end
+        end, 30)
+
+    local monitorInfo = Instance.new("TextLabel", monitorContent)
+    monitorInfo.Size = UDim2.new(1, 0, 0, 60)
+    monitorInfo.Position = UDim2.new(0, 0, 0, 65)
+    monitorInfo.BackgroundTransparency = 1
+    monitorInfo.Text = "Shows FPS and Ping in a compact\nmonitor at the top of the screen.\nThe monitor is fixed and cannot be moved."
+    monitorInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
+    monitorInfo.Font = Enum.Font.Gotham
+    monitorInfo.TextSize = 9
+    monitorInfo.TextXAlignment = Enum.TextXAlignment.Left
+    monitorInfo.TextYAlignment = Enum.TextYAlignment.Top
+    monitorInfo.TextWrapped = true
+    monitorInfo.ZIndex = 3
+
     -- ---- THEME CONFIG ----
     local themeContent = Instance.new("ScrollingFrame", settingsContentFrame)
     themeContent.Size = UDim2.new(1, 0, 1, 0)
@@ -2691,7 +2863,6 @@ local function loadMainUI()
         end)
     end
 
-    -- RGB BUTTON
     local rgbBtn = Instance.new("TextButton", themeContent)
     rgbBtn.Size = UDim2.new(0.22, 0, 0, 30)
     rgbBtn.Position = UDim2.new(0.74, 0, 0, 30)
@@ -2821,19 +2992,23 @@ local function loadMainUI()
 
     local function switchSettingsTab(panel, btn)
         appearanceContent.Visible = false
+        monitorContent.Visible = false
         themeContent.Visible = false
         panel.Visible = true
         btnAppearance.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        btnMonitor.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         btnThemeConfig.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
         btn.BackgroundColor3 = CurrentTheme.Color
     end
 
     btnAppearance.MouseButton1Click:Connect(function() switchSettingsTab(appearanceContent, btnAppearance) end)
+    btnMonitor.MouseButton1Click:Connect(function() switchSettingsTab(monitorContent, btnMonitor) end)
     btnThemeConfig.MouseButton1Click:Connect(function() switchSettingsTab(themeContent, btnThemeConfig) end)
 
     RegisterThemeListener(function(c)
         if settingsContent.Visible then
             if appearanceContent.Visible then btnAppearance.BackgroundColor3 = c end
+            if monitorContent.Visible then btnMonitor.BackgroundColor3 = c end
             if themeContent.Visible then btnThemeConfig.BackgroundColor3 = c end
         end
     end)
