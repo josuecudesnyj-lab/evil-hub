@@ -1,5 +1,5 @@
 -- ============================================================
--- EVIL HUB v8.5 (35% COMPLETE) - FIXED + FPS/PING
+-- EVIL HUB v8.5 - FULL CONFIG SAVE/LOAD (Delta)
 -- ============================================================
 local player = game:GetService("Players").LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -102,68 +102,18 @@ local function StopRGB()
     end
 end
 
-local SAVE_FILE = "EVIL_ThemeConfig.json"
+-- ============================================================
+-- FILE I/O (Delta compatible)
+-- ============================================================
+local SAVE_FILE = "EVIL_Config.json"
 
 local _writefile = writefile or write_file
 local _readfile  = readfile  or read_file
 local _isfile    = isfile    or is_file
 local _delfile   = delfile   or del_file
 
-local function SaveThemeConfig()
-    local data = {
-        Name = CurrentTheme.Name,
-        R = math.floor(CurrentTheme.Color.R * 255),
-        G = math.floor(CurrentTheme.Color.G * 255),
-        B = math.floor(CurrentTheme.Color.B * 255),
-        IsCustom = CurrentTheme.IsCustom,
-    }
-    local encoded = HttpService:JSONEncode(data)
-    if _writefile then
-        local ok, err = pcall(_writefile, SAVE_FILE, encoded)
-        if ok then
-            print("[EVIL] Config guardada correctamente.")
-        else
-            warn("[EVIL] Error guardando config:", err)
-        end
-    else
-        warn("[EVIL] Este executor no tiene writefile/write_file.")
-    end
-end
-
-local function LoadThemeConfig()
-    if not (_isfile and _readfile) then return end
-    local exists = false
-    pcall(function() exists = _isfile(SAVE_FILE) end)
-    if not exists then return end
-    local raw
-    pcall(function() raw = _readfile(SAVE_FILE) end)
-    if not raw or raw == "" then return end
-    local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
-    if ok and data and data.R and data.G and data.B then
-        CurrentTheme.Name = data.Name or "Custom"
-        CurrentTheme.Color = Color3.fromRGB(data.R, data.G, data.B)
-        CurrentTheme.IsCustom = data.IsCustom or false
-        CurrentTheme.LastNonRGBName = data.Name or "Red"
-    end
-end
-
-local function ResetThemeConfig()
-    CurrentTheme.Name = "Red"
-    CurrentTheme.Color = ThemeColors.Red
-    CurrentTheme.IsCustom = false
-    CurrentTheme.LastNonRGBName = "Red"
-    if _delfile then
-        pcall(function()
-            if _isfile and _isfile(SAVE_FILE) then _delfile(SAVE_FILE) end
-        end)
-    end
-    for _, fn in ipairs(ThemeListeners) do pcall(fn, CurrentTheme.Color) end
-end
-
-LoadThemeConfig()
-
 -- ============================================================
--- COMBAT VARIABLES
+-- VARIABLES GLOBALES (deben existir ANTES de guardar/cargar)
 -- ============================================================
 _G.G_SilentAimSkill = false
 _G.G_SilentAimTargetPlayers = false
@@ -175,147 +125,21 @@ _G.G_AttackPlayers = true
 _G.GhostAttack = false
 _G.SuperJumpActive = false
 _G.SanguineActive = false
+_G.AutoKen = false
+_G.FPSPingMonitorEnabled = false
+_G.FloatPositions = _G.FloatPositions or {}
 
 local SilentAimPlayersEnabled = false
 local SilentAimNPCsEnabled = false
 local maxRange = 2500
 local currentSilentAimTarget = nil
 
--- ============================================================
--- APPEARANCE VARIABLES
--- ============================================================
 local fakeKorbloxEnabled = false
 local fakeHeadlessEnabled = false
 local activeAura = nil
 local auraObjects = {}
 local korbloxMeshes = {}
 
--- ============================================================
--- MISC VARIABLES
--- ============================================================
-_G.AutoKen = false
-
--- ============================================================
--- FPS / PING MONITOR
--- ============================================================
-_G.FPSPingMonitorEnabled = false
-local fpsMonitorGui = nil
-
-local function CreateFPSPingMonitor()
-    if fpsMonitorGui then return end
-
-    fpsMonitorGui = Instance.new("ScreenGui")
-    fpsMonitorGui.Name = "DinosMonitor"
-    fpsMonitorGui.ResetOnSpawn = false
-    fpsMonitorGui.IgnoreGuiInset = true
-    fpsMonitorGui.DisplayOrder = 999
-    if gethui then
-        fpsMonitorGui.Parent = gethui()
-    elseif syn and syn.protect_gui then
-        syn.protect_gui(fpsMonitorGui)
-        fpsMonitorGui.Parent = CoreGui
-    else
-        fpsMonitorGui.Parent = CoreGui
-    end
-
-    local monitor = Instance.new("Frame")
-    monitor.Size = UDim2.new(0, 105, 0, 30)
-    monitor.Position = UDim2.new(0.5, -180, 0, 10)
-    monitor.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
-    monitor.BorderSizePixel = 0
-    monitor.Active = false
-    monitor.Draggable = false
-    monitor.Visible = true
-    monitor.ZIndex = 9999
-    monitor.Parent = fpsMonitorGui
-    Instance.new("UICorner", monitor).CornerRadius = UDim.new(0, 8)
-
-    local stroke = Instance.new("UIStroke", monitor)
-    stroke.Color = Color3.fromRGB(90, 200, 120)
-    stroke.Thickness = 1.5
-
-    local fpsLbl = Instance.new("TextLabel")
-    fpsLbl.Size = UDim2.new(1, -8, 0, 12)
-    fpsLbl.Position = UDim2.new(0, 4, 0, 3)
-    fpsLbl.BackgroundTransparency = 1
-    fpsLbl.Text = "FPS: --"
-    fpsLbl.TextColor3 = Color3.fromRGB(90, 255, 120)
-    fpsLbl.TextSize = 10
-    fpsLbl.Font = Enum.Font.GothamBold
-    fpsLbl.TextXAlignment = Enum.TextXAlignment.Center
-    fpsLbl.TextStrokeTransparency = 0
-    fpsLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    fpsLbl.ZIndex = 10000
-    fpsLbl.Parent = monitor
-
-    local pingLbl = Instance.new("TextLabel")
-    pingLbl.Size = UDim2.new(1, -8, 0, 12)
-    pingLbl.Position = UDim2.new(0, 4, 0, 15)
-    pingLbl.BackgroundTransparency = 1
-    pingLbl.Text = "PING: -- ms"
-    pingLbl.TextColor3 = Color3.fromRGB(90, 255, 120)
-    pingLbl.TextSize = 10
-    pingLbl.Font = Enum.Font.GothamBold
-    pingLbl.TextXAlignment = Enum.TextXAlignment.Center
-    pingLbl.TextStrokeTransparency = 0
-    pingLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    pingLbl.ZIndex = 10000
-    pingLbl.Parent = monitor
-
-    -- FPS
-    local fpsCount = 0
-    local lastTime = tick()
-    RunService.RenderStepped:Connect(function()
-        if not _G.FPSPingMonitorEnabled then return end
-        fpsCount = fpsCount + 1
-        local now = tick()
-        if now - lastTime >= 0.5 then
-            local fps = math.floor(fpsCount / (now - lastTime))
-            fpsCount = 0
-            lastTime = now
-            local color = Color3.fromRGB(90, 255, 120)
-            if fps < 30 then
-                color = Color3.fromRGB(255, 70, 70)
-            elseif fps < 50 then
-                color = Color3.fromRGB(255, 200, 60)
-            end
-            fpsLbl.Text = "FPS: " .. fps
-            fpsLbl.TextColor3 = color
-        end
-    end)
-
-    -- PING
-    task.spawn(function()
-        while fpsMonitorGui do
-            task.wait(0.5)
-            if _G.FPSPingMonitorEnabled then
-                local ping = 0
-                pcall(function()
-                    ping = math.floor(player:GetNetworkPing() * 1000)
-                end)
-                local pingColor = Color3.fromRGB(90, 255, 120)
-                if ping > 200 then
-                    pingColor = Color3.fromRGB(255, 70, 70)
-                elseif ping > 100 then
-                    pingColor = Color3.fromRGB(255, 200, 60)
-                end
-                pingLbl.Text = "PING: " .. ping .. " ms"
-                pingLbl.TextColor3 = pingColor
-            end
-        end
-    end)
-end
-
-local function DestroyFPSPingMonitor()
-    if fpsMonitorGui then
-        fpsMonitorGui:Destroy()
-        fpsMonitorGui = nil
-    end
-end
-
--- ============================================================
--- SORU VARIABLES
--- ============================================================
 local SoruInfinitoEnabled = false
 local SoruAimbotEnabled = false
 local PortalSoruEnabled = false
@@ -323,9 +147,6 @@ local soruMaxDist = 1000
 local SelectedSoruTarget = "Nearest"
 local SoruMouse = player:GetMouse()
 
--- ============================================================
--- SANGUINE MANUAL CONFIG
--- ============================================================
 local SANGUINE_FORCE = 500
 local SANGUINE_DURATION = 0.30
 local isBoostActive = false
@@ -336,6 +157,193 @@ local isBoostActive = false
 local commF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 local commE = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommE")
 local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+
+-- ============================================================
+-- SAVE / LOAD CONFIG COMPLETA
+-- ============================================================
+local function SaveFullConfig()
+    local data = {
+        Theme = {
+            Name = CurrentTheme.Name,
+            R = math.floor(CurrentTheme.Color.R * 255),
+            G = math.floor(CurrentTheme.Color.G * 255),
+            B = math.floor(CurrentTheme.Color.B * 255),
+            IsCustom = CurrentTheme.IsCustom,
+        },
+        Toggles = {
+            SilentAimSkill = _G.G_SilentAimSkill,
+            SilentAimTargetPlayers = _G.G_SilentAimTargetPlayers,
+            SilentAimTargetMobs = _G.G_SilentAimTargetMobs,
+            SilentAimTeamCheck = _G.G_SilentAimTeamCheck,
+            DragonGunM1 = _G.G_DragonGunM1,
+            GhostAttack = _G.GhostAttack,
+            AttackMobs = _G.G_AttackMobs,
+            AttackPlayers = _G.G_AttackPlayers,
+            SuperJumpActive = _G.SuperJumpActive,
+            SanguineActive = _G.SanguineActive,
+            AutoKen = _G.AutoKen,
+            FPSPingMonitor = _G.FPSPingMonitorEnabled,
+            FakeKorblox = fakeKorbloxEnabled,
+            FakeHeadless = fakeHeadlessEnabled,
+            ActiveAura = activeAura,
+            SoruInfinito = SoruInfinitoEnabled,
+            SoruAimbot = SoruAimbotEnabled,
+            PortalSoru = PortalSoruEnabled,
+        },
+        FloatPositions = _G.FloatPositions or {},
+    }
+    local ok, encoded = pcall(function() return HttpService:JSONEncode(data) end)
+    if not ok then
+        warn("[EVIL] Error encoding config")
+        return
+    end
+    if _writefile then
+        local ok2, err = pcall(_writefile, SAVE_FILE, encoded)
+        if ok2 then
+            print("[EVIL] ✅ Config completa guardada.")
+        else
+            warn("[EVIL] ❌ Error guardando:", err)
+        end
+    else
+        warn("[EVIL] ❌ Este executor no tiene writefile.")
+    end
+end
+
+local function LoadFullConfig()
+    if not (_isfile and _readfile) then return end
+    local exists = false
+    pcall(function() exists = _isfile(SAVE_FILE) end)
+    if not exists then return end
+    local raw
+    pcall(function() raw = _readfile(SAVE_FILE) end)
+    if not raw or raw == "" then return end
+    local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not ok or not data then return end
+
+    if data.Theme and data.Theme.R then
+        CurrentTheme.Name = data.Theme.Name or "Custom"
+        CurrentTheme.Color = Color3.fromRGB(data.Theme.R, data.Theme.G, data.Theme.B)
+        CurrentTheme.IsCustom = data.Theme.IsCustom or false
+        CurrentTheme.LastNonRGBName = data.Theme.Name or "Red"
+    end
+
+    if data.FloatPositions then
+        _G.FloatPositions = data.FloatPositions
+    end
+
+    if data.Toggles then
+        task.spawn(function()
+            task.wait(2)
+            local T = data.Toggles
+            if T.SilentAimTargetPlayers ~= nil then
+                _G.G_SilentAimTargetPlayers = T.SilentAimTargetPlayers
+                SilentAimPlayersEnabled = T.SilentAimTargetPlayers
+            end
+            if T.SilentAimTargetMobs ~= nil then
+                _G.G_SilentAimTargetMobs = T.SilentAimTargetMobs
+                SilentAimNPCsEnabled = T.SilentAimTargetMobs
+            end
+            if T.SilentAimTeamCheck ~= nil then _G.G_SilentAimTeamCheck = T.SilentAimTeamCheck end
+            if T.AttackMobs ~= nil then _G.G_AttackMobs = T.AttackMobs end
+            if T.AttackPlayers ~= nil then _G.G_AttackPlayers = T.AttackPlayers end
+            if T.GhostAttack ~= nil then _G.GhostAttack = T.GhostAttack end
+            if T.AutoKen ~= nil then _G.AutoKen = T.AutoKen end
+            if T.FPSPingMonitor ~= nil then
+                _G.FPSPingMonitorEnabled = T.FPSPingMonitor
+                if T.FPSPingMonitor and CreateFPSPingMonitor then
+                    pcall(CreateFPSPingMonitor)
+                end
+            end
+            if T.SilentAimSkill ~= nil then
+                _G.G_SilentAimSkill = T.SilentAimSkill
+                if T.SilentAimSkill and CreateSilentAimFloatingButton then
+                    pcall(CreateSilentAimFloatingButton)
+                end
+            end
+            if T.DragonGunM1 ~= nil then
+                _G.G_DragonGunM1 = T.DragonGunM1
+                if T.DragonGunM1 and CreateDragonM1FloatingButton then
+                    pcall(CreateDragonM1FloatingButton)
+                end
+            end
+            if T.SuperJumpActive ~= nil then
+                _G.SuperJumpActive = T.SuperJumpActive
+                if T.SuperJumpActive and CreateJumpFloatingButton then
+                    pcall(CreateJumpFloatingButton)
+                end
+            end
+            if T.SanguineActive ~= nil then
+                _G.SanguineActive = T.SanguineActive
+                if T.SanguineActive and CreateSanguineFloatingButton then
+                    pcall(CreateSanguineFloatingButton)
+                end
+            end
+            if T.FakeKorblox ~= nil then
+                fakeKorbloxEnabled = T.FakeKorblox
+                _G.FakeKorbloxEnabled = T.FakeKorblox
+                if T.FakeKorblox then pcall(applyFakeKorblox) end
+            end
+            if T.FakeHeadless ~= nil then
+                fakeHeadlessEnabled = T.FakeHeadless
+                _G.FakeHeadlessEnabled = T.FakeHeadless
+                if T.FakeHeadless then pcall(applyFakeHeadless) end
+            end
+            if T.ActiveAura and T.ActiveAura ~= "" and ApplyAura then
+                pcall(function() ApplyAura(T.ActiveAura) end)
+            end
+            if T.SoruInfinito ~= nil then
+                SoruInfinitoEnabled = T.SoruInfinito
+                if T.SoruInfinito and player.Character and enforceSoru then
+                    pcall(function() enforceSoru(player.Character) end)
+                end
+            end
+            if T.SoruAimbot ~= nil then SoruAimbotEnabled = T.SoruAimbot end
+            if T.PortalSoru ~= nil then PortalSoruEnabled = T.PortalSoru end
+            print("[EVIL] ✅ Config cargada.")
+        end)
+    end
+end
+
+local function ResetFullConfig()
+    CurrentTheme.Name = "Red"
+    CurrentTheme.Color = ThemeColors.Red
+    CurrentTheme.IsCustom = false
+    CurrentTheme.LastNonRGBName = "Red"
+
+    _G.G_SilentAimSkill = false
+    _G.G_SilentAimTargetPlayers = false
+    _G.G_SilentAimTargetMobs = false
+    _G.G_SilentAimTeamCheck = true
+    _G.G_DragonGunM1 = false
+    _G.GhostAttack = false
+    _G.SuperJumpActive = false
+    _G.SanguineActive = false
+    _G.AutoKen = false
+    _G.FPSPingMonitorEnabled = false
+    fakeKorbloxEnabled = false
+    fakeHeadlessEnabled = false
+    activeAura = nil
+    SoruInfinitoEnabled = false
+    SoruAimbotEnabled = false
+    PortalSoruEnabled = false
+    _G.FloatPositions = {}
+
+    if DestroyFPSPingMonitor then pcall(DestroyFPSPingMonitor) end
+    if ClearAura then pcall(ClearAura) end
+
+    if _delfile then
+        pcall(function()
+            if _isfile and _isfile(SAVE_FILE) then _delfile(SAVE_FILE) end
+        end)
+    end
+    for _, fn in ipairs(ThemeListeners) do pcall(fn, CurrentTheme.Color) end
+end
+
+SaveThemeConfig = SaveFullConfig
+ResetThemeConfig = ResetFullConfig
+LoadThemeConfig = LoadFullConfig
+
+LoadFullConfig()
 
 -- ============================================================
 -- APPEARANCE FUNCTIONS
@@ -644,7 +652,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ============================================================
--- DRAGON M1 MACRO (FIXED)
+-- DRAGON M1 MACRO
 -- ============================================================
 local DragonModules = ReplicatedStorage:WaitForChild("Modules")
 local DragonNet = DragonModules:WaitForChild("Net")
@@ -803,7 +811,7 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- FAST ATTACK (FIXED - NPCs + Players)
+-- FAST ATTACK (NPCs + Players)
 -- ============================================================
 task.spawn(function()
     while task.wait(0.03) do
@@ -813,13 +821,10 @@ task.spawn(function()
                 if not char then return end
                 local tool = char:FindFirstChildOfClass("Tool")
                 if not tool then return end
-
                 local registerAttack = Net:FindFirstChild("RE/RegisterAttack")
                 if registerAttack then registerAttack:FireServer(0) end
-
                 local myRoot = char:FindFirstChild("HumanoidRootPart")
                 if not myRoot then return end
-
                 local closest, shortest = nil, 60
 
                 local enemies = workspace:FindFirstChild("Enemies")
@@ -830,10 +835,7 @@ task.spawn(function()
                             local root = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head")
                             if root then
                                 local dist = (root.Position - myRoot.Position).Magnitude
-                                if dist < shortest then
-                                    shortest = dist
-                                    closest = enemy
-                                end
+                                if dist < shortest then shortest = dist; closest = enemy end
                             end
                         end
                     end
@@ -845,9 +847,7 @@ task.spawn(function()
                         local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Head")
                         if hum and hum.Health > 0 and root then
                             local isAlly = false
-                            if player.Team and p.Team and player.Team == p.Team then
-                                isAlly = true
-                            end
+                            if player.Team and p.Team and player.Team == p.Team then isAlly = true end
                             pcall(function()
                                 local main = player.PlayerGui:FindFirstChild("Main")
                                 local frame = main
@@ -856,17 +856,11 @@ task.spawn(function()
                                     and main.Allies.Container:FindFirstChild("Allies")
                                     and main.Allies.Container.Allies:FindFirstChild("ScrollingFrame")
                                     and main.Allies.Container.Allies.ScrollingFrame:FindFirstChild("Frame")
-                                if frame and frame:FindFirstChild(p.Name) then
-                                    isAlly = true
-                                end
+                                if frame and frame:FindFirstChild(p.Name) then isAlly = true end
                             end)
-
                             if not isAlly then
                                 local dist = (root.Position - myRoot.Position).Magnitude
-                                if dist < shortest then
-                                    shortest = dist
-                                    closest = p.Character
-                                end
+                                if dist < shortest then shortest = dist; closest = p.Character end
                             end
                         end
                     end
@@ -880,7 +874,6 @@ task.spawn(function()
                         registerHit:FireServer(head, {{closest, hrp}, closest}, nil, "078da5141")
                     end
                 end
-
                 tool:Activate()
             end)
         end
@@ -1098,6 +1091,121 @@ player.CharacterAdded:Connect(monitorCharPortal)
 if player.Character then monitorCharPortal(player.Character) end
 
 -- ============================================================
+-- FPS / PING MONITOR
+-- ============================================================
+local fpsMonitorGui = nil
+
+function CreateFPSPingMonitor()
+    if fpsMonitorGui then return end
+
+    fpsMonitorGui = Instance.new("ScreenGui")
+    fpsMonitorGui.Name = "DinosMonitor"
+    fpsMonitorGui.ResetOnSpawn = false
+    fpsMonitorGui.IgnoreGuiInset = true
+    fpsMonitorGui.DisplayOrder = 999
+    if gethui then
+        fpsMonitorGui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(fpsMonitorGui)
+        fpsMonitorGui.Parent = CoreGui
+    else
+        fpsMonitorGui.Parent = CoreGui
+    end
+
+    local monitor = Instance.new("Frame")
+    monitor.Size = UDim2.new(0, 105, 0, 30)
+    monitor.Position = UDim2.new(0.5, -180, 0, 10)
+    monitor.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    monitor.BorderSizePixel = 0
+    monitor.Active = false
+    monitor.Draggable = false
+    monitor.Visible = true
+    monitor.ZIndex = 9999
+    monitor.Parent = fpsMonitorGui
+    Instance.new("UICorner", monitor).CornerRadius = UDim.new(0, 8)
+
+    local stroke = Instance.new("UIStroke", monitor)
+    stroke.Color = Color3.fromRGB(90, 200, 120)
+    stroke.Thickness = 1.5
+
+    local fpsLbl = Instance.new("TextLabel")
+    fpsLbl.Size = UDim2.new(1, -8, 0, 12)
+    fpsLbl.Position = UDim2.new(0, 4, 0, 3)
+    fpsLbl.BackgroundTransparency = 1
+    fpsLbl.Text = "FPS: --"
+    fpsLbl.TextColor3 = Color3.fromRGB(90, 255, 120)
+    fpsLbl.TextSize = 10
+    fpsLbl.Font = Enum.Font.GothamBold
+    fpsLbl.TextXAlignment = Enum.TextXAlignment.Center
+    fpsLbl.TextStrokeTransparency = 0
+    fpsLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    fpsLbl.ZIndex = 10000
+    fpsLbl.Parent = monitor
+
+    local pingLbl = Instance.new("TextLabel")
+    pingLbl.Size = UDim2.new(1, -8, 0, 12)
+    pingLbl.Position = UDim2.new(0, 4, 0, 15)
+    pingLbl.BackgroundTransparency = 1
+    pingLbl.Text = "PING: -- ms"
+    pingLbl.TextColor3 = Color3.fromRGB(90, 255, 120)
+    pingLbl.TextSize = 10
+    pingLbl.Font = Enum.Font.GothamBold
+    pingLbl.TextXAlignment = Enum.TextXAlignment.Center
+    pingLbl.TextStrokeTransparency = 0
+    pingLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    pingLbl.ZIndex = 10000
+    pingLbl.Parent = monitor
+
+    local fpsCount = 0
+    local lastTime = tick()
+    RunService.RenderStepped:Connect(function()
+        if not _G.FPSPingMonitorEnabled then return end
+        fpsCount = fpsCount + 1
+        local now = tick()
+        if now - lastTime >= 0.5 then
+            local fps = math.floor(fpsCount / (now - lastTime))
+            fpsCount = 0
+            lastTime = now
+            local color = Color3.fromRGB(90, 255, 120)
+            if fps < 30 then
+                color = Color3.fromRGB(255, 70, 70)
+            elseif fps < 50 then
+                color = Color3.fromRGB(255, 200, 60)
+            end
+            fpsLbl.Text = "FPS: " .. fps
+            fpsLbl.TextColor3 = color
+        end
+    end)
+
+    task.spawn(function()
+        while fpsMonitorGui do
+            task.wait(0.5)
+            if _G.FPSPingMonitorEnabled then
+                local ping = 0
+                pcall(function()
+                    ping = math.floor(player:GetNetworkPing() * 1000)
+                end)
+                local pingColor = Color3.fromRGB(90, 255, 120)
+                if ping > 200 then
+                    pingColor = Color3.fromRGB(255, 70, 70)
+                elseif ping > 100 then
+                    pingColor = Color3.fromRGB(255, 200, 60)
+                end
+                pingLbl.Text = "PING: " .. ping .. " ms"
+                pingLbl.TextColor3 = pingColor
+            end
+        end
+    end)
+end
+
+function DestroyFPSPingMonitor()
+    if fpsMonitorGui then
+        fpsMonitorGui:Destroy()
+        fpsMonitorGui = nil
+    end
+end
+
+-- ============================================================
 -- GLITCH - JUMP
 -- ============================================================
 local jumpFloatGui, jumpFloatBtn
@@ -1233,7 +1341,7 @@ function DestroySanguineFloatingButton()
 end
 
 -- ============================================================
--- FLOATING BUTTONS - SILENT AIM + AUTO M1 (GUN)
+-- FLOATING BUTTONS - SILENT AIM + AUTO M1
 -- ============================================================
 local floatingGuiSA, floatingBtnSA
 local floatingGuiM1, floatingBtnM1
@@ -1248,6 +1356,7 @@ function CreateSilentAimFloatingButton()
     floatingGuiSA.Parent = playerGui
 
     floatingBtnSA = Instance.new("TextButton")
+    floatingBtnSA.Name = "EvilSilentAimBtn"
     floatingBtnSA.Size = UDim2.new(0, 45, 0, 45)
     floatingBtnSA.Position = UDim2.new(0.82, -22, 0.70, 0)
     floatingBtnSA.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
@@ -1301,6 +1410,7 @@ function CreateDragonM1FloatingButton()
     floatingGuiM1.Parent = playerGui
 
     floatingBtnM1 = Instance.new("TextButton")
+    floatingBtnM1.Name = "EvilDragonM1Btn"
     floatingBtnM1.Size = UDim2.new(0, 45, 0, 45)
     floatingBtnM1.Position = UDim2.new(0.82, -22, 0.78, 0)
     floatingBtnM1.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
@@ -1466,6 +1576,7 @@ local function createBoostFloatButton(key, cfg, yPos)
     fGui.ResetOnSpawn = false
     fGui.Parent = playerGui
     local Btn = Instance.new("TextButton")
+    Btn.Name = "BoostBtn_" .. key
     Btn.Size = UDim2.new(0, 50, 0, 40)
     Btn.Position = UDim2.new(0.85, 0, yPos, 0)
     Btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
@@ -1761,6 +1872,15 @@ function MakeDraggableAndClickable(guiObject, onClickCallback)
     local startPos = nil
     local moved = false
 
+    -- Restaurar posición guardada
+    _G.FloatPositions = _G.FloatPositions or {}
+    if guiObject.Name and guiObject.Name ~= "" and _G.FloatPositions[guiObject.Name] then
+        local p = _G.FloatPositions[guiObject.Name]
+        pcall(function()
+            guiObject.Position = UDim2.new(p.XS, p.XO, p.YS, p.YO)
+        end)
+    end
+
     guiObject.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
@@ -1795,6 +1915,14 @@ function MakeDraggableAndClickable(guiObject, onClickCallback)
                     startPos.Y.Scale,
                     startPos.Y.Offset + delta.Y
                 )
+                if guiObject.Name and guiObject.Name ~= "" then
+                    _G.FloatPositions[guiObject.Name] = {
+                        XS = guiObject.Position.X.Scale,
+                        XO = guiObject.Position.X.Offset,
+                        YS = guiObject.Position.Y.Scale,
+                        YO = guiObject.Position.Y.Offset,
+                    }
+                end
             end
         end
     end)
@@ -1946,6 +2074,7 @@ local function createToggle(parent, labelText, getter, setter, yPos)
         updateToggle()
         task.wait(0.15)
         debounce = false
+        pcall(SaveFullConfig)
     end
     btn.MouseButton1Down:Connect(safeToggle)
     btn.TouchTap:Connect(safeToggle)
@@ -2373,7 +2502,7 @@ local function loadMainUI()
     infoText.Size = UDim2.new(1, 0, 1, -30)
     infoText.Position = UDim2.new(0, 0, 0, 30)
     infoText.BackgroundTransparency = 1
-    infoText.Text = "Script: EVIL HUB\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config\n- Icons added to tabs\n- FPS / Ping Monitor\n- Bug Saved"
+    infoText.Text = "Script: EVIL HUB\nVersion: 8.5\nProgress: 35% Complete\nStatus: In Development\n\nNotes:\n- Testing phase\n- May have occasional errors\n- Report bugs in the Bug section\n\nLast update:\n- New UI redesign\n- COMBAT tab added\n- SORU tab added\n- GLITCH tab added\n- Theme System with RGB\n- Save/Reset config (FULL)\n- Icons added to tabs\n- FPS / Ping Monitor\n- Bug Saved"
     infoText.TextColor3 = Color3.fromRGB(220, 220, 220)
     infoText.Font = Enum.Font.Gotham
     infoText.TextSize = 10
@@ -2675,7 +2804,6 @@ local function loadMainUI()
     settingsContentFrame.BackgroundTransparency = 1
     settingsContentFrame.ZIndex = 3
 
-    -- APPEARANCE PANEL
     local appearanceContent = Instance.new("ScrollingFrame", settingsContentFrame)
     appearanceContent.Size = UDim2.new(1, 0, 1, 0)
     appearanceContent.BackgroundTransparency = 1
@@ -2753,7 +2881,7 @@ local function loadMainUI()
         end)
     end
 
-    -- ---- MONITOR PANEL (FPS/PING) ----
+    -- MONITOR PANEL
     local monitorContent = Instance.new("ScrollingFrame", settingsContentFrame)
     monitorContent.Size = UDim2.new(1, 0, 1, 0)
     monitorContent.BackgroundTransparency = 1
@@ -2798,7 +2926,7 @@ local function loadMainUI()
     monitorInfo.TextWrapped = true
     monitorInfo.ZIndex = 3
 
-    -- ---- THEME CONFIG ----
+    -- THEME PANEL
     local themeContent = Instance.new("ScrollingFrame", settingsContentFrame)
     themeContent.Size = UDim2.new(1, 0, 1, 0)
     themeContent.BackgroundTransparency = 1
@@ -2968,7 +3096,7 @@ local function loadMainUI()
     resetStroke.Thickness = 1.5
 
     saveBtn.MouseButton1Click:Connect(function()
-        SaveThemeConfig()
+        SaveFullConfig()
         saveBtn.Text = "SAVED!"
         task.wait(1)
         saveBtn.Text = "SAVE CONFIG"
@@ -2981,7 +3109,7 @@ local function loadMainUI()
             rgbBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
             rgbBtn.BackgroundTransparency = 0.55
         end
-        ResetThemeConfig()
+        ResetFullConfig()
         UpdateColorButtons()
         resetBtn.Text = "RESET!"
         task.wait(1)
@@ -3045,6 +3173,7 @@ local function loadMainUI()
     openGui.Parent = playerGui
 
     local openBtn = Instance.new("ImageButton")
+    openBtn.Name = "EvilOpenBtn"
     openBtn.Size = UDim2.new(0, 45, 0, 45)
     openBtn.Position = UDim2.new(0, 15, 0, 15)
     openBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
