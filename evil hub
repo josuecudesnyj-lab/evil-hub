@@ -10,23 +10,45 @@ local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 local RELEASE_YEAR = tonumber(os.date("%Y"))
 local RELEASE_MONTH = 9
 local RELEASE_DAY = 23
-local RELEASE_HOUR_SV = 14
-local RELEASE_MINUTE = 0
+local RELEASE_HOUR_SV = 14   -- 2 PM SV
 
+-- ============================================================
+-- CALCULO DE TIMESTAMP (math pura, sin os.time con tabla)
+-- ============================================================
 local function buildReleaseUnix()
-    local base = os.time({
-        year = RELEASE_YEAR,
-        month = RELEASE_MONTH,
-        day = RELEASE_DAY,
-        hour = RELEASE_HOUR_SV,
-        min = RELEASE_MINUTE,
-        sec = 0,
-    })
-    return base - (6 * 3600)
+    local year = RELEASE_YEAR
+    local daysPerMonth = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+    local isLeap = (year % 4 == 0 and year % 100 ~= 0) or (year % 400 == 0)
+    if isLeap then daysPerMonth[2] = 29 end
+
+    -- Dias desde epoch (1 enero 1970) hasta el dia del release
+    local days = 0
+    for m = 1, (RELEASE_MONTH - 1) do
+        days = days + daysPerMonth[m]
+    end
+    days = days + RELEASE_DAY - 1
+
+    -- Sumar anios completos
+    local years = year - 1970
+    local leapDays = 0
+    for y = 1970, year - 1 do
+        if (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0) then
+            leapDays = leapDays + 1
+        end
+    end
+    days = days + years * 365 + leapDays
+
+    -- Segundos desde epoch hasta las 00:00 UTC de ese dia
+    local baseUTC = days * 86400
+    -- Sumar 20h = 20:00 UTC = 14:00 SV (UTC-6)
+    return baseUTC + (20 * 3600)
 end
 
 local RELEASE_UNIX = buildReleaseUnix()
 
+-- ============================================================
+-- OFFSETS DE MX / USA CON DST
+-- ============================================================
 local function getOffset(unixTs, country)
     local date = os.date("!*t", unixTs)
     local year, month, day = date.year, date.month, date.day
@@ -96,14 +118,17 @@ local RELEASE_TEXT = string.format(
 local nowUnix = os.time()
 local canCopy = nowUnix >= RELEASE_UNIX
 
+-- ============================================================
 -- URLs
+-- ============================================================
 local RADICAL_URL = "https://raw.githubusercontent.com/josuecudesnyj-lab/radical-hub/refs/heads/main/radical%20hub"
 local BLESS_URL   = "https://raw.githubusercontent.com/josuecudesnyj-lab/bless-hub/refs/heads/main/bless%20hub"
 
--- Loadstring de Radical Hub (para copiar)
 local LOADSTRING_RADICAL = 'loadstring(game:HttpGet("' .. RADICAL_URL .. '"))()'
 
+-- ============================================================
 -- GUI
+-- ============================================================
 local avisoGui = Instance.new("ScreenGui")
 avisoGui.Name = "EvilHub_AvisoRetiro"
 avisoGui.ResetOnSpawn = false
@@ -113,7 +138,6 @@ if gethui then avisoGui.Parent = gethui()
 elseif syn and syn.protect_gui then syn.protect_gui(avisoGui); avisoGui.Parent = CoreGui
 else avisoGui.Parent = playerGui end
 
--- Panel principal
 local panel = Instance.new("Frame")
 panel.Size = UDim2.new(0, 520, 0, 470)
 panel.Position = UDim2.new(0.5, -260, 0.5, -235)
@@ -129,7 +153,6 @@ local stroke = Instance.new("UIStroke", panel)
 stroke.Color = Color3.fromRGB(255, 60, 60)
 stroke.Thickness = 2
 
--- Titulo
 local title = Instance.new("TextLabel", panel)
 title.Size = UDim2.new(1, -20, 0, 34)
 title.Position = UDim2.new(0, 10, 0, 10)
@@ -140,7 +163,6 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 16
 title.ZIndex = 11
 
--- Separador
 local sep = Instance.new("Frame", panel)
 sep.Size = UDim2.new(1, -20, 0, 1)
 sep.Position = UDim2.new(0, 10, 0, 48)
@@ -149,7 +171,6 @@ sep.BackgroundTransparency = 0.6
 sep.BorderSizePixel = 0
 sep.ZIndex = 11
 
--- Mensaje
 local msg = Instance.new("TextLabel", panel)
 msg.Size = UDim2.new(1, -20, 0, 100)
 msg.Position = UDim2.new(0, 10, 0, 56)
@@ -162,7 +183,6 @@ msg.TextWrapped = true
 msg.TextYAlignment = Enum.TextYAlignment.Top
 msg.ZIndex = 11
 
--- Horarios
 local timesLabel = Instance.new("TextLabel", panel)
 timesLabel.Size = UDim2.new(1, -20, 0, 45)
 timesLabel.Position = UDim2.new(0, 10, 0, 162)
@@ -176,7 +196,6 @@ timesLabel.TextWrapped = true
 timesLabel.ZIndex = 11
 Instance.new("UICorner", timesLabel).CornerRadius = UDim.new(0, 6)
 
--- Titulo del contador
 local countdownTitle = Instance.new("TextLabel", panel)
 countdownTitle.Size = UDim2.new(1, -20, 0, 16)
 countdownTitle.Position = UDim2.new(0, 10, 0, 212)
@@ -187,7 +206,6 @@ countdownTitle.Font = Enum.Font.GothamBold
 countdownTitle.TextSize = 10
 countdownTitle.ZIndex = 11
 
--- Contador
 local countdownLabel = Instance.new("TextLabel", panel)
 countdownLabel.Size = UDim2.new(1, -20, 0, 45)
 countdownLabel.Position = UDim2.new(0, 10, 0, 230)
@@ -205,7 +223,6 @@ countdownStroke.Color = Color3.fromRGB(255, 200, 60)
 countdownStroke.Thickness = 1.5
 countdownStroke.Transparency = 0.4
 
--- Subtitulo botones
 local copyTitleLabel = Instance.new("TextLabel", panel)
 copyTitleLabel.Size = UDim2.new(1, -20, 0, 16)
 copyTitleLabel.Position = UDim2.new(0, 10, 0, 285)
@@ -216,7 +233,6 @@ copyTitleLabel.Font = Enum.Font.GothamBold
 copyTitleLabel.TextSize = 10
 copyTitleLabel.ZIndex = 11
 
--- Boton COPIAR RADICAL HUB (bloqueado hasta el 23)
 local copyRadicalBtn = Instance.new("TextButton", panel)
 copyRadicalBtn.Size = UDim2.new(0.48, 0, 0, 40)
 copyRadicalBtn.Position = UDim2.new(0, 10, 0, 305)
@@ -230,7 +246,6 @@ copyRadicalBtn.AutoButtonColor = canCopy
 copyRadicalBtn.ZIndex = 11
 Instance.new("UICorner", copyRadicalBtn).CornerRadius = UDim.new(0, 8)
 
--- Boton CARGAR BLESS HUB (funciona siempre)
 local loadBlessBtn = Instance.new("TextButton", panel)
 loadBlessBtn.Size = UDim2.new(0.48, 0, 0, 40)
 loadBlessBtn.Position = UDim2.new(0.52, 0, 0, 305)
@@ -243,7 +258,6 @@ loadBlessBtn.BorderSizePixel = 0
 loadBlessBtn.ZIndex = 11
 Instance.new("UICorner", loadBlessBtn).CornerRadius = UDim.new(0, 8)
 
--- Boton cerrar
 local closeBtn = Instance.new("TextButton", panel)
 closeBtn.Size = UDim2.new(1, -20, 0, 32)
 closeBtn.Position = UDim2.new(0, 10, 0, 358)
@@ -260,7 +274,6 @@ closeBtn.MouseButton1Click:Connect(function()
     avisoGui:Destroy()
 end)
 
--- Nota inferior
 local noteLabel = Instance.new("TextLabel", panel)
 noteLabel.Size = UDim2.new(1, -20, 0, 40)
 noteLabel.Position = UDim2.new(0, 10, 0, 398)
@@ -312,7 +325,7 @@ updateCountdown()
 countdownConn = RunService.Heartbeat:Connect(updateCountdown)
 
 -- ============================================================
--- BOTON COPIAR RADICAL HUB (bloqueado hasta el 23)
+-- BOTON COPIAR RADICAL HUB
 -- ============================================================
 copyRadicalBtn.MouseButton1Click:Connect(function()
     if os.time() < RELEASE_UNIX then
@@ -336,7 +349,7 @@ copyRadicalBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- BOTON CARGAR BLESS HUB (funciona siempre, sin importar la hora)
+-- BOTON CARGAR BLESS HUB
 -- ============================================================
 local loadingBless = false
 loadBlessBtn.MouseButton1Click:Connect(function()
@@ -372,7 +385,6 @@ loadBlessBtn.MouseButton1Click:Connect(function()
         loadBlessBtn.Text = "EJECUTANDO..."
         task.wait(0.2)
 
-        -- No destruimos el aviso: Bless se carga encima
         local ok2, err2 = pcall(fn)
         if not ok2 then
             warn("BLESS HUB runtime error: " .. tostring(err2))
