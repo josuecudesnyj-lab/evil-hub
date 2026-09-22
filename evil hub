@@ -6,14 +6,13 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Fecha objetivo: 23 de Septiembre del año actual a las 14:00 hora El Salvador (UTC-6)
 local RELEASE_YEAR = tonumber(os.date("%Y"))
 local RELEASE_MONTH = 9
 local RELEASE_DAY = 23
-local RELEASE_HOUR_SV = 14   -- 2 PM SV
+local RELEASE_HOUR_SV = 14
 
 -- ============================================================
--- CALCULO DE TIMESTAMP (math pura, sin os.time con tabla)
+-- CALCULO TIMESTAMP
 -- ============================================================
 local function buildReleaseUnix()
     local year = RELEASE_YEAR
@@ -21,14 +20,12 @@ local function buildReleaseUnix()
     local isLeap = (year % 4 == 0 and year % 100 ~= 0) or (year % 400 == 0)
     if isLeap then daysPerMonth[2] = 29 end
 
-    -- Dias desde epoch (1 enero 1970) hasta el dia del release
     local days = 0
     for m = 1, (RELEASE_MONTH - 1) do
         days = days + daysPerMonth[m]
     end
     days = days + RELEASE_DAY - 1
 
-    -- Sumar anios completos
     local years = year - 1970
     local leapDays = 0
     for y = 1970, year - 1 do
@@ -38,16 +35,14 @@ local function buildReleaseUnix()
     end
     days = days + years * 365 + leapDays
 
-    -- Segundos desde epoch hasta las 00:00 UTC de ese dia
     local baseUTC = days * 86400
-    -- Sumar 20h = 20:00 UTC = 14:00 SV (UTC-6)
     return baseUTC + (20 * 3600)
 end
 
 local RELEASE_UNIX = buildReleaseUnix()
 
 -- ============================================================
--- OFFSETS DE MX / USA CON DST
+-- OFFSETS MX / USA
 -- ============================================================
 local function getOffset(unixTs, country)
     local date = os.date("!*t", unixTs)
@@ -111,19 +106,16 @@ local mxTime = formatTime(RELEASE_UNIX, getOffset(RELEASE_UNIX, "MX"))
 local usTime = formatTime(RELEASE_UNIX, getOffset(RELEASE_UNIX, "US"))
 
 local RELEASE_TEXT = string.format(
-    "23 de Septiembre  |  %s SV  |  %s MX  |  %s USA",
+    "23 Sept  |  %s SV  |  %s MX  |  %s USA",
     svTime, mxTime, usTime
 )
 
 local nowUnix = os.time()
 local canCopy = nowUnix >= RELEASE_UNIX
 
--- ============================================================
 -- URLs
--- ============================================================
 local RADICAL_URL = "https://raw.githubusercontent.com/josuecudesnyj-lab/radical-hub/refs/heads/main/radical%20hub"
 local BLESS_URL   = "https://raw.githubusercontent.com/josuecudesnyj-lab/bless-hub/refs/heads/main/bless%20hub"
-
 local LOADSTRING_RADICAL = 'loadstring(game:HttpGet("' .. RADICAL_URL .. '"))()'
 
 -- ============================================================
@@ -138,13 +130,14 @@ if gethui then avisoGui.Parent = gethui()
 elseif syn and syn.protect_gui then syn.protect_gui(avisoGui); avisoGui.Parent = CoreGui
 else avisoGui.Parent = playerGui end
 
+-- Panel mas compacto y FIJO (no draggable)
 local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 520, 0, 470)
-panel.Position = UDim2.new(0.5, -260, 0.5, -235)
+panel.Size = UDim2.new(0, 420, 0, 500)
+panel.Position = UDim2.new(0.5, -210, 0.5, -250)
 panel.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
 panel.BorderSizePixel = 0
 panel.Active = true
-panel.Draggable = true
+panel.Draggable = false   -- FIJA
 panel.ZIndex = 10
 panel.Parent = avisoGui
 Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 14)
@@ -153,68 +146,85 @@ local stroke = Instance.new("UIStroke", panel)
 stroke.Color = Color3.fromRGB(255, 60, 60)
 stroke.Thickness = 2
 
+-- Titulo
 local title = Instance.new("TextLabel", panel)
-title.Size = UDim2.new(1, -20, 0, 34)
-title.Position = UDim2.new(0, 10, 0, 10)
+title.Size = UDim2.new(1, -20, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 8)
 title.BackgroundTransparency = 1
 title.Text = "EVIL HUB - AVISO OFICIAL"
 title.TextColor3 = Color3.fromRGB(255, 80, 80)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 16
+title.TextSize = 14
 title.ZIndex = 11
 
+-- Separador
 local sep = Instance.new("Frame", panel)
 sep.Size = UDim2.new(1, -20, 0, 1)
-sep.Position = UDim2.new(0, 10, 0, 48)
+sep.Position = UDim2.new(0, 10, 0, 42)
 sep.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 sep.BackgroundTransparency = 0.6
 sep.BorderSizePixel = 0
 sep.ZIndex = 11
 
-local msg = Instance.new("TextLabel", panel)
-msg.Size = UDim2.new(1, -20, 0, 100)
-msg.Position = UDim2.new(0, 10, 0, 56)
+-- ScrollingFrame para el contenido
+local scroll = Instance.new("ScrollingFrame", panel)
+scroll.Size = UDim2.new(1, -12, 1, -50)
+scroll.Position = UDim2.new(0, 6, 0, 46)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 3
+scroll.ScrollBarImageColor3 = Color3.fromRGB(255, 80, 80)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 900)
+scroll.ZIndex = 11
+
+-- Mensaje
+local msg = Instance.new("TextLabel", scroll)
+msg.Size = UDim2.new(1, -10, 0, 85)
+msg.Position = UDim2.new(0, 5, 0, 4)
 msg.BackgroundTransparency = 1
 msg.Text = "Hola, espero que hayas tenido un lindo día.\n\nVengo a informarte que este script ha llegado a su fin.\nEl nuevo script estará disponible el 23 a las 2 de la tarde."
 msg.TextColor3 = Color3.fromRGB(230, 230, 230)
 msg.Font = Enum.Font.Gotham
-msg.TextSize = 12
+msg.TextSize = 11
 msg.TextWrapped = true
 msg.TextYAlignment = Enum.TextYAlignment.Top
 msg.ZIndex = 11
 
-local timesLabel = Instance.new("TextLabel", panel)
-timesLabel.Size = UDim2.new(1, -20, 0, 45)
-timesLabel.Position = UDim2.new(0, 10, 0, 162)
+-- Horarios
+local timesLabel = Instance.new("TextLabel", scroll)
+timesLabel.Size = UDim2.new(1, -10, 0, 40)
+timesLabel.Position = UDim2.new(0, 5, 0, 94)
 timesLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 timesLabel.BorderSizePixel = 0
 timesLabel.Text = RELEASE_TEXT
 timesLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
 timesLabel.Font = Enum.Font.GothamBold
-timesLabel.TextSize = 10
+timesLabel.TextSize = 9
 timesLabel.TextWrapped = true
 timesLabel.ZIndex = 11
 Instance.new("UICorner", timesLabel).CornerRadius = UDim.new(0, 6)
 
-local countdownTitle = Instance.new("TextLabel", panel)
-countdownTitle.Size = UDim2.new(1, -20, 0, 16)
-countdownTitle.Position = UDim2.new(0, 10, 0, 212)
+-- Titulo contador
+local countdownTitle = Instance.new("TextLabel", scroll)
+countdownTitle.Size = UDim2.new(1, -10, 0, 14)
+countdownTitle.Position = UDim2.new(0, 5, 0, 138)
 countdownTitle.BackgroundTransparency = 1
 countdownTitle.Text = "TIEMPO RESTANTE"
 countdownTitle.TextColor3 = Color3.fromRGB(150, 150, 160)
 countdownTitle.Font = Enum.Font.GothamBold
-countdownTitle.TextSize = 10
+countdownTitle.TextSize = 9
 countdownTitle.ZIndex = 11
 
-local countdownLabel = Instance.new("TextLabel", panel)
-countdownLabel.Size = UDim2.new(1, -20, 0, 45)
-countdownLabel.Position = UDim2.new(0, 10, 0, 230)
+-- Contador
+local countdownLabel = Instance.new("TextLabel", scroll)
+countdownLabel.Size = UDim2.new(1, -10, 0, 40)
+countdownLabel.Position = UDim2.new(0, 5, 0, 154)
 countdownLabel.BackgroundColor3 = Color3.fromRGB(25, 15, 35)
 countdownLabel.BorderSizePixel = 0
 countdownLabel.Text = "Cargando contador..."
 countdownLabel.TextColor3 = Color3.fromRGB(255, 200, 60)
 countdownLabel.Font = Enum.Font.GothamBold
-countdownLabel.TextSize = 16
+countdownLabel.TextSize = 14
 countdownLabel.ZIndex = 11
 Instance.new("UICorner", countdownLabel).CornerRadius = UDim.new(0, 6)
 
@@ -223,70 +233,134 @@ countdownStroke.Color = Color3.fromRGB(255, 200, 60)
 countdownStroke.Thickness = 1.5
 countdownStroke.Transparency = 0.4
 
-local copyTitleLabel = Instance.new("TextLabel", panel)
-copyTitleLabel.Size = UDim2.new(1, -20, 0, 16)
-copyTitleLabel.Position = UDim2.new(0, 10, 0, 285)
+-- Titulo opciones
+local copyTitleLabel = Instance.new("TextLabel", scroll)
+copyTitleLabel.Size = UDim2.new(1, -10, 0, 14)
+copyTitleLabel.Position = UDim2.new(0, 5, 0, 200)
 copyTitleLabel.BackgroundTransparency = 1
 copyTitleLabel.Text = "OPCIONES"
 copyTitleLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
 copyTitleLabel.Font = Enum.Font.GothamBold
-copyTitleLabel.TextSize = 10
+copyTitleLabel.TextSize = 9
 copyTitleLabel.ZIndex = 11
 
-local copyRadicalBtn = Instance.new("TextButton", panel)
-copyRadicalBtn.Size = UDim2.new(0.48, 0, 0, 40)
-copyRadicalBtn.Position = UDim2.new(0, 10, 0, 305)
+-- Boton copiar Radical
+local copyRadicalBtn = Instance.new("TextButton", scroll)
+copyRadicalBtn.Size = UDim2.new(0.48, 0, 0, 36)
+copyRadicalBtn.Position = UDim2.new(0, 5, 0, 218)
 copyRadicalBtn.BackgroundColor3 = canCopy and Color3.fromRGB(60, 40, 90) or Color3.fromRGB(45, 30, 30)
 copyRadicalBtn.Text = canCopy and "COPIAR RADICAL" or "BLOQUEADO"
 copyRadicalBtn.TextColor3 = canCopy and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 100, 100)
 copyRadicalBtn.Font = Enum.Font.GothamBold
-copyRadicalBtn.TextSize = 10
+copyRadicalBtn.TextSize = 9
 copyRadicalBtn.BorderSizePixel = 0
 copyRadicalBtn.AutoButtonColor = canCopy
 copyRadicalBtn.ZIndex = 11
 Instance.new("UICorner", copyRadicalBtn).CornerRadius = UDim.new(0, 8)
 
-local loadBlessBtn = Instance.new("TextButton", panel)
-loadBlessBtn.Size = UDim2.new(0.48, 0, 0, 40)
-loadBlessBtn.Position = UDim2.new(0.52, 0, 0, 305)
+-- Boton cargar Bless
+local loadBlessBtn = Instance.new("TextButton", scroll)
+loadBlessBtn.Size = UDim2.new(0.48, 0, 0, 36)
+loadBlessBtn.Position = UDim2.new(0.52, 0, 0, 218)
 loadBlessBtn.BackgroundColor3 = Color3.fromRGB(40, 90, 60)
 loadBlessBtn.Text = "CARGAR BLESS"
 loadBlessBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 loadBlessBtn.Font = Enum.Font.GothamBold
-loadBlessBtn.TextSize = 10
+loadBlessBtn.TextSize = 9
 loadBlessBtn.BorderSizePixel = 0
 loadBlessBtn.ZIndex = 11
 Instance.new("UICorner", loadBlessBtn).CornerRadius = UDim.new(0, 8)
 
+-- ============================================================
+-- DESPEDIDA OFICIAL (seccion dentro del scroll)
+-- ============================================================
+local despedidaSep = Instance.new("Frame", scroll)
+despedidaSep.Size = UDim2.new(1, -10, 0, 1)
+despedidaSep.Position = UDim2.new(0, 5, 0, 268)
+despedidaSep.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+despedidaSep.BackgroundTransparency = 0.7
+despedidaSep.BorderSizePixel = 0
+despedidaSep.ZIndex = 11
+
+local despedidaTitle = Instance.new("TextLabel", scroll)
+despedidaTitle.Size = UDim2.new(1, -10, 0, 20)
+despedidaTitle.Position = UDim2.new(0, 5, 0, 274)
+despedidaTitle.BackgroundTransparency = 1
+despedidaTitle.Text = "🕯️ DESPEDIDA OFICIAL"
+despedidaTitle.TextColor3 = Color3.fromRGB(255, 80, 80)
+despedidaTitle.Font = Enum.Font.GothamBold
+despedidaTitle.TextSize = 11
+despedidaTitle.ZIndex = 11
+
+local despedidaText = Instance.new("TextLabel", scroll)
+despedidaText.Size = UDim2.new(1, -10, 0, 340)
+despedidaText.Position = UDim2.new(0, 5, 0, 298)
+despedidaText.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+despedidaText.BorderSizePixel = 0
+despedidaText.Text = [[Hoy cerramos un capítulo.
+Evil Hub nos acompañó durante horas de juego, risas, bugs, updates y memes.
+
+Fue nuestro primer intento serio, el que nos enseñó a programar UIs, hooks, aimbots y todo lo que hoy sabemos.
+
+Cada línea de código, cada botón verde y gris, cada contador… fueron parte de este viaje.
+
+Evil Hub no muere — se transforma.
+
+Mañana 23 de septiembre a las 2:00 PM SV, nace Radical Hub con todo lo aprendido, más limpio, más rápido, más completo.
+
+Gracias a todos los que probaron, reportaron bugs, sugirieron mejoras y confiaron desde el día 1.
+
+Esto no es un adiós. Es un "hasta luego".
+
+🕯️ EVIL HUB
+2025 — 2025
+"El primer paso siempre es el más difícil."
+
+Descansa en paz, soldado. 🫡]]
+despedidaText.TextColor3 = Color3.fromRGB(210, 210, 215)
+despedidaText.Font = Enum.Font.Gotham
+despedidaText.TextSize = 10
+despedidaText.TextWrapped = true
+despedidaText.TextYAlignment = Enum.TextYAlignment.Top
+despedidaText.TextXAlignment = Enum.TextXAlignment.Left
+despedidaText.ZIndex = 11
+Instance.new("UICorner", despedidaText).CornerRadius = UDim.new(0, 8)
+Instance.new("UIPadding", despedidaText).PaddingTop = UDim.new(0, 6)
+Instance.new("UIPadding", despedidaText).PaddingBottom = UDim.new(0, 6)
+Instance.new("UIPadding", despedidaText).PaddingLeft = UDim.new(0, 6)
+Instance.new("UIPadding", despedidaText).PaddingRight = UDim.new(0, 6)
+
+-- Nota final
+local noteLabel = Instance.new("TextLabel", scroll)
+noteLabel.Size = UDim2.new(1, -10, 0, 40)
+noteLabel.Position = UDim2.new(0, 5, 0, 646)
+noteLabel.BackgroundTransparency = 1
+noteLabel.Text = "• COPIAR RADICAL: se desbloquea el 23 a las 2PM SV\n• CARGAR BLESS: disponible en cualquier momento"
+noteLabel.TextColor3 = Color3.fromRGB(130, 130, 140)
+noteLabel.Font = Enum.Font.Gotham
+noteLabel.TextSize = 8
+noteLabel.TextWrapped = true
+noteLabel.ZIndex = 11
+
+-- Boton cerrar (fuera del scroll, fijo abajo del panel)
 local closeBtn = Instance.new("TextButton", panel)
-closeBtn.Size = UDim2.new(1, -20, 0, 32)
-closeBtn.Position = UDim2.new(0, 10, 0, 358)
+closeBtn.Size = UDim2.new(1, -20, 0, 30)
+closeBtn.Position = UDim2.new(0, 10, 1, -38)
 closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
 closeBtn.Text = "CERRAR"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 11
+closeBtn.TextSize = 10
 closeBtn.BorderSizePixel = 0
-closeBtn.ZIndex = 11
+closeBtn.ZIndex = 12
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 
 closeBtn.MouseButton1Click:Connect(function()
     avisoGui:Destroy()
 end)
 
-local noteLabel = Instance.new("TextLabel", panel)
-noteLabel.Size = UDim2.new(1, -20, 0, 40)
-noteLabel.Position = UDim2.new(0, 10, 0, 398)
-noteLabel.BackgroundTransparency = 1
-noteLabel.Text = "• COPIAR RADICAL: se desbloquea el 23 a las 2PM SV\n• CARGAR BLESS: disponible en cualquier momento"
-noteLabel.TextColor3 = Color3.fromRGB(130, 130, 140)
-noteLabel.Font = Enum.Font.Gotham
-noteLabel.TextSize = 9
-noteLabel.TextWrapped = true
-noteLabel.ZIndex = 11
-
 -- ============================================================
--- CONTADOR EN VIVO (HH:MM:SS)
+-- CONTADOR EN VIVO
 -- ============================================================
 local function formatCountdown(seconds)
     if seconds < 0 then seconds = 0 end
@@ -325,7 +399,7 @@ updateCountdown()
 countdownConn = RunService.Heartbeat:Connect(updateCountdown)
 
 -- ============================================================
--- BOTON COPIAR RADICAL HUB
+-- BOTON COPIAR RADICAL
 -- ============================================================
 copyRadicalBtn.MouseButton1Click:Connect(function()
     if os.time() < RELEASE_UNIX then
@@ -349,7 +423,7 @@ copyRadicalBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- BOTON CARGAR BLESS HUB
+-- BOTON CARGAR BLESS
 -- ============================================================
 local loadingBless = false
 loadBlessBtn.MouseButton1Click:Connect(function()
