@@ -1,16 +1,15 @@
 --[[
     LUA+C — Loader todo-en-uno
-    - Carga la librería (core.lua+c)
+    - Carga la librería (core.lua+c) que YA tiene el botón 20px arriba
     - Inyecta addons (Combat, Glitch, Soru, Misc, Appearance)
     - Botones flotantes arrastrables (AIM, M1, JUMP, SANG, SANGUINE, DTALON)
-    - Botón de abrir/cerrar UI movido 20px arriba
     - Guarda posición de botones + config completa
 ]]
 
 -- ==========================================================
 -- 1) CARGAR LA LIBRERÍA
 -- ==========================================================
-local LIB_URL = "https://gist.githubusercontent.com/josuecudesnyj-lab/5ed0754ab20f0dbb7f521d776e2007a9/raw/5ff7df15f8e146c78f67044f105cf1b8167e4c41/core.lua+c"
+local LIB_URL = "https://gist.githubusercontent.com/josuecudesnyj-lab/5ed0754ab20f0dbb7f521d776e2007a9/raw/3521a47cf70d4bd23ba5e6d9c1279477685dd99a/core.lua+c"
 
 local ok, code = pcall(function() return game:HttpGet(LIB_URL) end)
 if not ok or not code or code == "" then
@@ -137,48 +136,7 @@ loadFloatPositions()
 task.spawn(function() while task.wait(15) do saveFloatPositions() end end)
 
 -- ==========================================================
--- 5) MOVER EL BOTÓN DE ABRIR/CERRAR UI (20px arriba)
--- ==========================================================
-task.spawn(function()
-    task.wait(1)
-
-    -- Nombres de los ScreenGuis que NO queremos tocar
-    local SKIP = {
-        ["LUAC_SilentAim_Floating"]   = true,
-        ["LUAC_DragonM1_Floating"]    = true,
-        ["LUAC_Jump_Floating"]        = true,
-        ["LUAC_Sang_Floating"]        = true,
-        ["BoostFloat_SanguineAuto"]   = true,
-        ["BoostFloat_DTalonAuto"]     = true,
-        ["KeySystemUI"]               = true,
-    }
-
-    local function findFloatBtn()
-        for _, gui in pairs(playerGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and not SKIP[gui.Name] then
-                for _, obj in pairs(gui:GetDescendants()) do
-                    if obj:IsA("ImageButton") and obj.Name == "FloatButton" then
-                        return obj
-                    end
-                end
-            end
-        end
-        return nil
-    end
-
-    local btn = findFloatBtn()
-    if btn then
-        btn.Position = UDim2.new(
-            btn.Position.X.Scale,
-            btn.Position.X.Offset,
-            btn.Position.Y.Scale,
-            btn.Position.Y.Offset - 20
-        )
-    end
-end)
-
--- ==========================================================
--- 6) HELPERS UI
+-- 5) HELPERS UI
 -- ==========================================================
 local function getThemeColor()
     local c = Color3.fromRGB(0, 200, 100)
@@ -361,7 +319,7 @@ local function makeSlider(parent, label, min, max, step, get, set, order)
 end
 
 -- ==========================================================
--- 7) BOTONES FLOTANTES
+-- 6) BOTONES FLOTANTES
 -- ==========================================================
 local FLOAT_ON     = Color3.fromRGB(0, 200, 80)
 local FLOAT_OFF    = Color3.fromRGB(60, 60, 65)
@@ -468,7 +426,7 @@ task.spawn(function()
 end)
 
 -- ==========================================================
--- 8) ESTADO (variables _G_ globales de verdad)
+-- 7) ESTADO (variables _G_ globales de verdad)
 -- ==========================================================
 local HUB_CONFIG = {
     WalkSpeed = 16, WalkSpeedEnabled = false,
@@ -497,7 +455,7 @@ local ESP     = { Enabled=false, ShowName=true, ShowLevel=true, ShowDistance=tru
 local CamLock = { PlayerEnabled=false, NpcEnabled=false, Smoothness=0.4 }
 
 -- ==========================================================
--- 9) CONFIG GUARDADA
+-- 8) CONFIG GUARDADA
 -- ==========================================================
 local function saveConfig()
     if not _writefile then return end
@@ -565,7 +523,7 @@ loadConfig()
 task.spawn(function() while task.wait(20) do saveConfig() end end)
 
 -- ==========================================================
--- 10) BOOSTS (Sanguine Auto / DTalon Auto)
+-- 9) BOOSTS (Sanguine Auto / DTalon Auto)
 -- ==========================================================
 local BoostConfig = {
     SanguineAuto = {
@@ -802,7 +760,7 @@ local function createBoostSub(k, cfg, pg)
 end
 
 -- ==========================================================
--- 11) LÓGICA DE FONDO
+-- 10) LÓGICA DE FONDO
 -- ==========================================================
 task.spawn(function()
     while task.wait(0.2) do
@@ -1031,7 +989,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================================
--- 12) INYECCIÓN A LOS TABS
+-- 11) INYECCIÓN A LOS TABS
 -- ==========================================================
 
 -- COMBAT
@@ -1284,7 +1242,7 @@ if appearScroll then
 end
 
 -- ==========================================================
--- 13) RESTAURAR BOTONES FLOTANTES AL CARGAR
+-- 12) RESTAURAR BOTONES FLOTANTES AL CARGAR
 -- ==========================================================
 task.spawn(function()
     task.wait(1)
@@ -1297,7 +1255,7 @@ task.spawn(function()
 end)
 
 -- ==========================================================
--- 14) NOTIFICACIÓN FINAL
+-- 13) NOTIFICACIÓN FINAL
 -- ==========================================================
 if Library.ShowNotif then
     pcall(function()
