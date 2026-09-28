@@ -1,15 +1,16 @@
 --[[
     LUA+C — Loader todo-en-uno
-    - Carga la librería (core.lua+c) que YA tiene el botón 20px arriba
+    - Carga la librería (core.lua+c)
+    - Fix del botón flotante (abrir/cerrar UI)
     - Inyecta addons (Combat, Glitch, Soru, Misc, Appearance)
-    - Botones flotantes arrastrables (AIM, M1, JUMP, SANG, SANGUINE, DTALON)
-    - Guarda posición de botones + config completa
+    - Botones flotantes arrastrables
+    - Guarda posición de botones + config
 ]]
 
 -- ==========================================================
 -- 1) CARGAR LA LIBRERÍA
 -- ==========================================================
-local LIB_URL = "https://gist.githubusercontent.com/josuecudesnyj-lab/5ed0754ab20f0dbb7f521d776e2007a9/raw/3521a47cf70d4bd23ba5e6d9c1279477685dd99a/core.lua+c"
+local LIB_URL = "https://gist.githubusercontent.com/josuecudesnyj-lab/5ed0754ab20f0dbb7f521d776e2007a9/raw/36e650e3dd16c64f5b44b7320ecf433ac18375eb/core.lua+c"
 
 local ok, code = pcall(function() return game:HttpGet(LIB_URL) end)
 if not ok or not code or code == "" then
@@ -44,7 +45,72 @@ if not Library.GetTab or not Library.GetTab("Combat") then
 end
 
 -- ==========================================================
--- 3) SERVICIOS
+-- 3) FIX DEL BOTÓN FLOTANTE (abrir/cerrar UI)
+-- ==========================================================
+task.spawn(function()
+    task.wait(1)
+    local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    local SKIP = {
+        ["LUAC_SilentAim_Floating"] = true,
+        ["LUAC_DragonM1_Floating"]  = true,
+        ["LUAC_Jump_Floating"]      = true,
+        ["LUAC_Sang_Floating"]      = true,
+        ["BoostFloat_SanguineAuto"] = true,
+        ["BoostFloat_DTalonAuto"]   = true,
+        ["KeySystemUI"]             = true,
+    }
+    local btn = nil
+    for _, gui in pairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and not SKIP[gui.Name] then
+            for _, obj in pairs(gui:GetDescendants()) do
+                if obj:IsA("ImageButton") and obj.Name == "FloatButton" then
+                    btn = obj
+                    break
+                end
+            end
+        end
+        if btn then break end
+    end
+    if btn then
+        -- Reemplazamos las conexiones viejas con un click limpio
+        local dragging, dragStart, startPos, clickStart = false, nil, nil, 0
+        local moved = false
+        btn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true; moved = false
+                dragStart = input.Position
+                startPos = btn.Position
+                clickStart = tick()
+            end
+        end)
+        btn.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+                if dragging then
+                    dragging = false
+                    if not moved and (tick() - clickStart) < 1.2 then
+                        pcall(function()
+                            if Library.Toggle then Library.Toggle() end
+                        end)
+                    end
+                end
+            end
+        end)
+        game:GetService("UserInputService").InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - dragStart
+                if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then moved = true end
+                btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                                         startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+    end
+end)
+
+-- ==========================================================
+-- 4) SERVICIOS
 -- ==========================================================
 local Players             = game:GetService("Players")
 local UserInputService    = game:GetService("UserInputService")
@@ -63,7 +129,7 @@ local _isfile    = rawget(getfenv(), "isfile")    or rawget(getfenv(), "is_file"
 local _delfile   = rawget(getfenv(), "delfile")   or rawget(getfenv(), "del_file")
 
 -- ==========================================================
--- 4) GUARDADO DE POSICIONES Y CONFIG
+-- 5) GUARDADO DE POSICIONES Y CONFIG
 -- ==========================================================
 local POS_FILE    = "LUAC_FloatPositions.json"
 local CONFIG_FILE = "LUAC_Config.json"
@@ -136,7 +202,7 @@ loadFloatPositions()
 task.spawn(function() while task.wait(15) do saveFloatPositions() end end)
 
 -- ==========================================================
--- 5) HELPERS UI
+-- 6) HELPERS UI
 -- ==========================================================
 local function getThemeColor()
     local c = Color3.fromRGB(0, 200, 100)
@@ -319,7 +385,7 @@ local function makeSlider(parent, label, min, max, step, get, set, order)
 end
 
 -- ==========================================================
--- 6) BOTONES FLOTANTES
+-- 7) BOTONES FLOTANTES
 -- ==========================================================
 local FLOAT_ON     = Color3.fromRGB(0, 200, 80)
 local FLOAT_OFF    = Color3.fromRGB(60, 60, 65)
@@ -426,7 +492,7 @@ task.spawn(function()
 end)
 
 -- ==========================================================
--- 7) ESTADO (variables _G_ globales de verdad)
+-- 8) ESTADO
 -- ==========================================================
 local HUB_CONFIG = {
     WalkSpeed = 16, WalkSpeedEnabled = false,
@@ -455,7 +521,7 @@ local ESP     = { Enabled=false, ShowName=true, ShowLevel=true, ShowDistance=tru
 local CamLock = { PlayerEnabled=false, NpcEnabled=false, Smoothness=0.4 }
 
 -- ==========================================================
--- 8) CONFIG GUARDADA
+-- 9) CONFIG GUARDADA
 -- ==========================================================
 local function saveConfig()
     if not _writefile then return end
@@ -523,7 +589,7 @@ loadConfig()
 task.spawn(function() while task.wait(20) do saveConfig() end end)
 
 -- ==========================================================
--- 9) BOOSTS (Sanguine Auto / DTalon Auto)
+-- 10) BOOSTS (Sanguine Auto / DTalon Auto)
 -- ==========================================================
 local BoostConfig = {
     SanguineAuto = {
@@ -760,7 +826,7 @@ local function createBoostSub(k, cfg, pg)
 end
 
 -- ==========================================================
--- 10) LÓGICA DE FONDO
+-- 11) LÓGICA DE FONDO
 -- ==========================================================
 task.spawn(function()
     while task.wait(0.2) do
@@ -989,7 +1055,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================================
--- 11) INYECCIÓN A LOS TABS
+-- 12) INYECCIÓN A LOS TABS
 -- ==========================================================
 
 -- COMBAT
@@ -1242,7 +1308,7 @@ if appearScroll then
 end
 
 -- ==========================================================
--- 12) RESTAURAR BOTONES FLOTANTES AL CARGAR
+-- 13) RESTAURAR BOTONES FLOTANTES AL CARGAR
 -- ==========================================================
 task.spawn(function()
     task.wait(1)
@@ -1255,7 +1321,7 @@ task.spawn(function()
 end)
 
 -- ==========================================================
--- 13) NOTIFICACIÓN FINAL
+-- 14) NOTIFICACIÓN FINAL
 -- ==========================================================
 if Library.ShowNotif then
     pcall(function()
