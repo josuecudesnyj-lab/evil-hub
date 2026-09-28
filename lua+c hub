@@ -3,6 +3,7 @@
     - Carga la librería (core.lua+c)
     - Inyecta addons (Combat, Glitch, Soru, Misc, Appearance)
     - Botones flotantes arrastrables (AIM, M1, JUMP, SANG, SANGUINE, DTALON)
+    - Botón de abrir/cerrar UI movido 20px arriba
     - Guarda posición de botones + config completa
 ]]
 
@@ -136,7 +137,48 @@ loadFloatPositions()
 task.spawn(function() while task.wait(15) do saveFloatPositions() end end)
 
 -- ==========================================================
--- 5) HELPERS UI
+-- 5) MOVER EL BOTÓN DE ABRIR/CERRAR UI (20px arriba)
+-- ==========================================================
+task.spawn(function()
+    task.wait(1)
+
+    -- Nombres de los ScreenGuis que NO queremos tocar
+    local SKIP = {
+        ["LUAC_SilentAim_Floating"]   = true,
+        ["LUAC_DragonM1_Floating"]    = true,
+        ["LUAC_Jump_Floating"]        = true,
+        ["LUAC_Sang_Floating"]        = true,
+        ["BoostFloat_SanguineAuto"]   = true,
+        ["BoostFloat_DTalonAuto"]     = true,
+        ["KeySystemUI"]               = true,
+    }
+
+    local function findFloatBtn()
+        for _, gui in pairs(playerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and not SKIP[gui.Name] then
+                for _, obj in pairs(gui:GetDescendants()) do
+                    if obj:IsA("ImageButton") and obj.Name == "FloatButton" then
+                        return obj
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    local btn = findFloatBtn()
+    if btn then
+        btn.Position = UDim2.new(
+            btn.Position.X.Scale,
+            btn.Position.X.Offset,
+            btn.Position.Y.Scale,
+            btn.Position.Y.Offset - 20
+        )
+    end
+end)
+
+-- ==========================================================
+-- 6) HELPERS UI
 -- ==========================================================
 local function getThemeColor()
     local c = Color3.fromRGB(0, 200, 100)
@@ -319,7 +361,7 @@ local function makeSlider(parent, label, min, max, step, get, set, order)
 end
 
 -- ==========================================================
--- 6) BOTONES FLOTANTES
+-- 7) BOTONES FLOTANTES
 -- ==========================================================
 local FLOAT_ON     = Color3.fromRGB(0, 200, 80)
 local FLOAT_OFF    = Color3.fromRGB(60, 60, 65)
@@ -393,28 +435,28 @@ end
 
 local function CreateSABtn()
     createStateFloat("LUAC_SilentAim_Floating", "LUAC_AimBtn", "AIM",
-        UDim2.new(0.82, -22, 0.70, 0),
+        UDim2.new(0.82, -22, 0.70, -20),
         function() return _G_SilentAimSkill end,
         function() _G_SilentAimSkill = not _G_SilentAimSkill end)
 end
 
 local function CreateM1Btn()
     createStateFloat("LUAC_DragonM1_Floating", "LUAC_M1Btn", "M1",
-        UDim2.new(0.82, -22, 0.78, 0),
+        UDim2.new(0.82, -22, 0.78, -20),
         function() return _G_DragonGunM1 end,
         function() _G_DragonGunM1 = not _G_DragonGunM1 end)
 end
 
 local function CreateJumpBtn()
     createStateFloat("LUAC_Jump_Floating", "LUAC_JumpBtn", "JUMP",
-        UDim2.new(0.85, 0, 0.5, 0),
+        UDim2.new(0.85, 0, 0.5, -20),
         function() return _G_SuperJumpActive end,
         function() _G_SuperJumpActive = not _G_SuperJumpActive end)
 end
 
 local function CreateSangBtn()
     createStateFloat("LUAC_Sang_Floating", "LUAC_SangBtn", "SANG",
-        UDim2.new(0.85, 0, 0.6, 0),
+        UDim2.new(0.85, 0, 0.6, -20),
         function() return _G_SanguineActive end,
         function() _G_SanguineActive = not _G_SanguineActive end)
 end
@@ -426,7 +468,7 @@ task.spawn(function()
 end)
 
 -- ==========================================================
--- 7) ESTADO (variables _G_ globales de verdad)
+-- 8) ESTADO (variables _G_ globales de verdad)
 -- ==========================================================
 local HUB_CONFIG = {
     WalkSpeed = 16, WalkSpeedEnabled = false,
@@ -455,7 +497,7 @@ local ESP     = { Enabled=false, ShowName=true, ShowLevel=true, ShowDistance=tru
 local CamLock = { PlayerEnabled=false, NpcEnabled=false, Smoothness=0.4 }
 
 -- ==========================================================
--- 8) CONFIG GUARDADA
+-- 9) CONFIG GUARDADA
 -- ==========================================================
 local function saveConfig()
     if not _writefile then return end
@@ -523,7 +565,7 @@ loadConfig()
 task.spawn(function() while task.wait(20) do saveConfig() end end)
 
 -- ==========================================================
--- 9) BOOSTS (Sanguine Auto / DTalon Auto)
+-- 10) BOOSTS (Sanguine Auto / DTalon Auto)
 -- ==========================================================
 local BoostConfig = {
     SanguineAuto = {
@@ -612,7 +654,7 @@ local function createBoostFloat(k, cfg, y)
     local b = Instance.new("TextButton")
     b.Name = "BoostBtn_"..k
     b.Size = UDim2.new(0, 55, 0, 40)
-    b.Position = UDim2.new(0.85, 0, y, 0)
+    b.Position = UDim2.new(0.85, 0, y, -20)
     b.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
     b.Text = cfg.Name:gsub(" Auto", "")
     b.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -760,7 +802,7 @@ local function createBoostSub(k, cfg, pg)
 end
 
 -- ==========================================================
--- 10) LÓGICA DE FONDO
+-- 11) LÓGICA DE FONDO
 -- ==========================================================
 task.spawn(function()
     while task.wait(0.2) do
@@ -989,7 +1031,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================================
--- 11) INYECCIÓN A LOS TABS
+-- 12) INYECCIÓN A LOS TABS
 -- ==========================================================
 
 -- COMBAT
@@ -1242,7 +1284,7 @@ if appearScroll then
 end
 
 -- ==========================================================
--- 12) RESTAURAR BOTONES FLOTANTES AL CARGAR
+-- 13) RESTAURAR BOTONES FLOTANTES AL CARGAR
 -- ==========================================================
 task.spawn(function()
     task.wait(1)
@@ -1255,7 +1297,7 @@ task.spawn(function()
 end)
 
 -- ==========================================================
--- 13) NOTIFICACIÓN FINAL
+-- 14) NOTIFICACIÓN FINAL
 -- ==========================================================
 if Library.ShowNotif then
     pcall(function()
