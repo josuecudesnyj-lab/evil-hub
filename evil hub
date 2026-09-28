@@ -1,356 +1,1266 @@
--- ============================================================
--- EVIL HUB - AVISO OFICIAL DE RETIRO (RETRASO)
--- ============================================================
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local RunService = game:GetService("RunService")
-local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+--[[
+    LUA+C — Loader todo-en-uno
+    - Carga la librería (core.lua+c)
+    - Inyecta addons (Combat, Glitch, Soru, Misc, Appearance)
+    - Botones flotantes arrastrables (AIM, M1, JUMP, SANG, SANGUINE, DTALON)
+    - Guarda posición de botones + config completa
+]]
 
--- Fecha objetivo: 24 de Septiembre del año actual a las 12:00 PM hora El Salvador (UTC-6)
-local RELEASE_YEAR = tonumber(os.date("%Y"))
-local RELEASE_MONTH = 9
-local RELEASE_DAY = 24
-local RELEASE_HOUR_SV = 12
+-- ==========================================================
+-- 1) CARGAR LA LIBRERÍA
+-- ==========================================================
+local LIB_URL = "https://gist.githubusercontent.com/josuecudesnyj-lab/5ed0754ab20f0dbb7f521d776e2007a9/raw/5ff7df15f8e146c78f67044f105cf1b8167e4c41/core.lua+c"
 
-local function buildReleaseUnix()
-    local y = RELEASE_YEAR
-    local dpm = {31,28,31,30,31,30,31,31,30,31,30,31}
-    local leap = (y%4==0 and y%100~=0) or (y%400==0)
-    if leap then dpm[2]=29 end
-    local days=0
-    for m=1,(RELEASE_MONTH-1) do days=days+dpm[m] end
-    days=days+RELEASE_DAY-1
-    local yrs=y-1970
-    local ld=0
-    for yy=1970,y-1 do if (yy%4==0 and yy%100~=0) or (yy%400==0) then ld=ld+1 end end
-    days=days+yrs*365+ld
-    return (days*86400)+(18*3600)  -- 18:00 UTC = 12:00 PM SV
+local ok, code = pcall(function() return game:HttpGet(LIB_URL) end)
+if not ok or not code or code == "" then
+    warn("LUA+C: no se pudo descargar la librería")
+    return
 end
 
-local RELEASE_UNIX = buildReleaseUnix()
-
-local function getOffset(unixTs, country)
-    local date = os.date("!*t", unixTs)
-    local year, month, day = date.year, date.month, date.day
-    local function firstSundayOf(y, m)
-        for d = 1, 7 do
-            local t = os.time({year = y, month = m, day = d, hour = 12, min = 0, sec = 0})
-            if os.date("!*t", t).wday == 1 then return d end
-        end
-        return 1
-    end
-    local function secondSundayOf(y, m)
-        for d = 8, 14 do
-            local t = os.time({year = y, month = m, day = d, hour = 12, min = 0, sec = 0})
-            if os.date("!*t", t).wday == 1 then return d end
-        end
-        return 8
-    end
-    local function lastSundayOf(y, m)
-        local lastDay = 31
-        if m == 4 or m == 6 or m == 9 or m == 11 then lastDay = 30 end
-        if m == 2 then lastDay = 28 end
-        for d = lastDay, lastDay - 6, -1 do
-            local t = os.time({year = y, month = m, day = d, hour = 12, min = 0, sec = 0})
-            if os.date("!*t", t).wday == 1 then return d end
-        end
-        return lastDay
-    end
-    if country == "MX" then
-        local startDST = firstSundayOf(year, 4)
-        local endDST = lastSundayOf(year, 10)
-        local inDST = (month > 4 and month < 10) or (month == 4 and day >= startDST) or (month == 10 and day < endDST)
-        return inDST and -5 or -6
-    elseif country == "US" then
-        local startDST = secondSundayOf(year, 3)
-        local endDST = firstSundayOf(year, 11)
-        local inDST = (month > 3 and month < 11) or (month == 3 and day >= startDST) or (month == 11 and day < endDST)
-        return inDST and -4 or -5
-    end
-    return -6
+local fn, err = loadstring(code)
+if not fn then
+    warn("LUA+C: error al compilar → " .. tostring(err))
+    return
 end
 
-local function formatTime(unixTs, offset)
-    local t = os.date("!*t", unixTs + (offset * 3600))
-    local h = t.hour % 12
-    if h == 0 then h = 12 end
-    local ampm = (t.hour >= 12) and "PM" or "AM"
-    return string.format("%02d:%02d %s", h, t.min, ampm)
+local ok2, Library = pcall(fn)
+if not ok2 or type(Library) ~= "table" then
+    warn("LUA+C: la librería no retornó una tabla válida")
+    return
 end
 
-local svTime = formatTime(RELEASE_UNIX, -6)
-local mxTime = formatTime(RELEASE_UNIX, getOffset(RELEASE_UNIX, "MX"))
-local usTime = formatTime(RELEASE_UNIX, getOffset(RELEASE_UNIX, "US"))
-
-local RELEASE_TEXT = string.format("24 de Septiembre  |  %s SV  |  %s MX  |  %s USA", svTime, mxTime, usTime)
-
-local nowUnix = os.time()
-local canCopy = nowUnix >= RELEASE_UNIX
-
-local RADICAL_URL = "https://raw.githubusercontent.com/josuecudesnyj-lab/radical-hub/refs/heads/main/radical%20hub"
-local BLESS_URL   = "https://raw.githubusercontent.com/josuecudesnyj-lab/bless-hub/refs/heads/main/bless%20hub"
-local LOADSTRING_RADICAL = 'loadstring(game:HttpGet("' .. RADICAL_URL .. '"))()'
-
-local avisoGui = Instance.new("ScreenGui")
-avisoGui.Name = "EvilHub_AvisoRetiro"
-avisoGui.ResetOnSpawn = false
-avisoGui.IgnoreGuiInset = true
-avisoGui.DisplayOrder = 999
-if gethui then avisoGui.Parent = gethui()
-elseif syn and syn.protect_gui then syn.protect_gui(avisoGui); avisoGui.Parent = CoreGui
-else avisoGui.Parent = playerGui end
-
-local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 520, 0, 520)
-panel.Position = UDim2.new(0.5, -260, 0.5, -260)
-panel.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
-panel.BorderSizePixel = 0
-panel.Active = true
-panel.Draggable = true
-panel.ZIndex = 10
-panel.Parent = avisoGui
-Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 14)
-
-local stroke = Instance.new("UIStroke", panel)
-stroke.Color = Color3.fromRGB(255, 60, 60)
-stroke.Thickness = 2
-
-local title = Instance.new("TextLabel", panel)
-title.Size = UDim2.new(1, -20, 0, 34)
-title.Position = UDim2.new(0, 10, 0, 10)
-title.BackgroundTransparency = 1
-title.Text = "EVIL HUB - AVISO OFICIAL"
-title.TextColor3 = Color3.fromRGB(255, 80, 80)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.ZIndex = 11
-
-local sep = Instance.new("Frame", panel)
-sep.Size = UDim2.new(1, -20, 0, 1)
-sep.Position = UDim2.new(0, 10, 0, 48)
-sep.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-sep.BackgroundTransparency = 0.6
-sep.BorderSizePixel = 0
-sep.ZIndex = 11
-
-local msg = Instance.new("TextLabel", panel)
-msg.Size = UDim2.new(1, -20, 0, 120)
-msg.Position = UDim2.new(0, 10, 0, 56)
-msg.BackgroundTransparency = 1
-msg.Text = "Hola, espero que hayas tenido un lindo día.\n\nVengo a informarte que el lanzamiento del nuevo script SE RETRASA hasta el 24 a las 12 del mediodía (hora SV).\n\nEsto fue por un error de última hora que hemos encontrado.\nGracias por la paciencia y disculpa las molestias."
-msg.TextColor3 = Color3.fromRGB(230, 230, 230)
-msg.Font = Enum.Font.Gotham
-msg.TextSize = 12
-msg.TextWrapped = true
-msg.TextYAlignment = Enum.TextYAlignment.Top
-msg.ZIndex = 11
-
-local timesLabel = Instance.new("TextLabel", panel)
-timesLabel.Size = UDim2.new(1, -20, 0, 45)
-timesLabel.Position = UDim2.new(0, 10, 0, 182)
-timesLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-timesLabel.BorderSizePixel = 0
-timesLabel.Text = RELEASE_TEXT
-timesLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-timesLabel.Font = Enum.Font.GothamBold
-timesLabel.TextSize = 10
-timesLabel.TextWrapped = true
-timesLabel.ZIndex = 11
-Instance.new("UICorner", timesLabel).CornerRadius = UDim.new(0, 6)
-
-local countdownTitle = Instance.new("TextLabel", panel)
-countdownTitle.Size = UDim2.new(1, -20, 0, 16)
-countdownTitle.Position = UDim2.new(0, 10, 0, 232)
-countdownTitle.BackgroundTransparency = 1
-countdownTitle.Text = "TIEMPO RESTANTE"
-countdownTitle.TextColor3 = Color3.fromRGB(150, 150, 160)
-countdownTitle.Font = Enum.Font.GothamBold
-countdownTitle.TextSize = 10
-countdownTitle.ZIndex = 11
-
-local countdownLabel = Instance.new("TextLabel", panel)
-countdownLabel.Size = UDim2.new(1, -20, 0, 45)
-countdownLabel.Position = UDim2.new(0, 10, 0, 250)
-countdownLabel.BackgroundColor3 = Color3.fromRGB(25, 15, 35)
-countdownLabel.BorderSizePixel = 0
-countdownLabel.Text = "Cargando contador..."
-countdownLabel.TextColor3 = Color3.fromRGB(255, 200, 60)
-countdownLabel.Font = Enum.Font.GothamBold
-countdownLabel.TextSize = 16
-countdownLabel.ZIndex = 11
-Instance.new("UICorner", countdownLabel).CornerRadius = UDim.new(0, 6)
-
-local countdownStroke = Instance.new("UIStroke", countdownLabel)
-countdownStroke.Color = Color3.fromRGB(255, 200, 60)
-countdownStroke.Thickness = 1.5
-countdownStroke.Transparency = 0.4
-
-local copyTitleLabel = Instance.new("TextLabel", panel)
-copyTitleLabel.Size = UDim2.new(1, -20, 0, 16)
-copyTitleLabel.Position = UDim2.new(0, 10, 0, 305)
-copyTitleLabel.BackgroundTransparency = 1
-copyTitleLabel.Text = "OPCIONES"
-copyTitleLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
-copyTitleLabel.Font = Enum.Font.GothamBold
-copyTitleLabel.TextSize = 10
-copyTitleLabel.ZIndex = 11
-
-local copyRadicalBtn = Instance.new("TextButton", panel)
-copyRadicalBtn.Size = UDim2.new(0.48, 0, 0, 40)
-copyRadicalBtn.Position = UDim2.new(0, 10, 0, 325)
-copyRadicalBtn.BackgroundColor3 = canCopy and Color3.fromRGB(60, 40, 90) or Color3.fromRGB(45, 30, 30)
-copyRadicalBtn.Text = canCopy and "COPIAR RADICAL" or "BLOQUEADO"
-copyRadicalBtn.TextColor3 = canCopy and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 100, 100)
-copyRadicalBtn.Font = Enum.Font.GothamBold
-copyRadicalBtn.TextSize = 10
-copyRadicalBtn.BorderSizePixel = 0
-copyRadicalBtn.AutoButtonColor = canCopy
-copyRadicalBtn.ZIndex = 11
-Instance.new("UICorner", copyRadicalBtn).CornerRadius = UDim.new(0, 8)
-
-local loadBlessBtn = Instance.new("TextButton", panel)
-loadBlessBtn.Size = UDim2.new(0.48, 0, 0, 40)
-loadBlessBtn.Position = UDim2.new(0.52, 0, 0, 325)
-loadBlessBtn.BackgroundColor3 = Color3.fromRGB(40, 90, 60)
-loadBlessBtn.Text = "CARGAR BLESS"
-loadBlessBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-loadBlessBtn.Font = Enum.Font.GothamBold
-loadBlessBtn.TextSize = 10
-loadBlessBtn.BorderSizePixel = 0
-loadBlessBtn.ZIndex = 11
-Instance.new("UICorner", loadBlessBtn).CornerRadius = UDim.new(0, 8)
-
-local closeBtn = Instance.new("TextButton", panel)
-closeBtn.Size = UDim2.new(1, -20, 0, 32)
-closeBtn.Position = UDim2.new(0, 10, 1, -42)
-closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-closeBtn.Text = "CERRAR"
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 11
-closeBtn.BorderSizePixel = 0
-closeBtn.ZIndex = 11
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
-
-closeBtn.MouseButton1Click:Connect(function()
-    avisoGui:Destroy()
-end)
-
-local noteLabel = Instance.new("TextLabel", panel)
-noteLabel.Size = UDim2.new(1, -20, 0, 40)
-noteLabel.Position = UDim2.new(0, 10, 1, -85)
-noteLabel.BackgroundTransparency = 1
-noteLabel.Text = "• COPIAR RADICAL: se desbloquea el 24 a las 12:00 PM SV\n• CARGAR BLESS: disponible en cualquier momento"
-noteLabel.TextColor3 = Color3.fromRGB(130, 130, 140)
-noteLabel.Font = Enum.Font.Gotham
-noteLabel.TextSize = 9
-noteLabel.TextWrapped = true
-noteLabel.ZIndex = 11
-
-local function formatCountdown(seconds)
-    if seconds < 0 then seconds = 0 end
-    local h = math.floor(seconds / 3600)
-    local m = math.floor((seconds % 3600) / 60)
-    local s = math.floor(seconds % 60)
-    return string.format("%02d : %02d : %02d", h, m, s)
+-- ==========================================================
+-- 2) ESPERAR QUE LA UI ESTÉ LISTA
+-- ==========================================================
+local tries = 0
+while (not Library.GetTab or not Library.GetTab("Combat")) and tries < 100 do
+    task.wait(0.1)
+    tries = tries + 1
 end
 
-local countdownConn
-local countdownDone = false
-local function updateCountdown()
-    if not countdownLabel or not countdownLabel.Parent then
-        if countdownConn then countdownConn:Disconnect() end
-        return
+if not Library.GetTab or not Library.GetTab("Combat") then
+    warn("LUA+C: la UI no terminó de cargar (timeout)")
+    return
+end
+
+-- ==========================================================
+-- 3) SERVICIOS
+-- ==========================================================
+local Players             = game:GetService("Players")
+local UserInputService    = game:GetService("UserInputService")
+local RunService          = game:GetService("RunService")
+local ReplicatedStorage   = game:GetService("ReplicatedStorage")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService        = game:GetService("TweenService")
+local HttpService         = game:GetService("HttpService")
+local player              = Players.LocalPlayer
+local playerGui           = player:WaitForChild("PlayerGui")
+
+-- File I/O (rawget → sin warnings de linter)
+local _writefile = rawget(getfenv(), "writefile") or rawget(getfenv(), "write_file")
+local _readfile  = rawget(getfenv(), "readfile")  or rawget(getfenv(), "read_file")
+local _isfile    = rawget(getfenv(), "isfile")    or rawget(getfenv(), "is_file")
+local _delfile   = rawget(getfenv(), "delfile")   or rawget(getfenv(), "del_file")
+
+-- ==========================================================
+-- 4) GUARDADO DE POSICIONES Y CONFIG
+-- ==========================================================
+local POS_FILE    = "LUAC_FloatPositions.json"
+local CONFIG_FILE = "LUAC_Config.json"
+
+local FloatPositions = {}
+
+local function loadFloatPositions()
+    if not (_isfile and _readfile) then return end
+    local exists = false
+    pcall(function() exists = _isfile(POS_FILE) end)
+    if not exists then return end
+    local raw
+    pcall(function() raw = _readfile(POS_FILE) end)
+    if not raw or raw == "" then return end
+    local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if ok and data then FloatPositions = data end
+end
+
+local function saveFloatPositions()
+    if not _writefile then return end
+    local ok, enc = pcall(function() return HttpService:JSONEncode(FloatPositions) end)
+    if ok and enc then pcall(function() _writefile(POS_FILE, enc) end) end
+end
+
+local function applySavedPosition(btn)
+    if not btn or not btn.Name or btn.Name == "" then return end
+    local saved = FloatPositions[btn.Name]
+    if saved and saved.XS then
+        pcall(function() btn.Position = UDim2.new(saved.XS, saved.XO, saved.YS, saved.YO) end)
     end
-    local remaining = RELEASE_UNIX - os.time()
-    if remaining <= 0 then
-        countdownLabel.Text = "¡YA DISPONIBLE!"
-        countdownLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
-        countdownStroke.Color = Color3.fromRGB(80, 255, 120)
-        if not countdownDone then
-            countdownDone = true
-            copyRadicalBtn.Text = "COPIAR RADICAL"
-            copyRadicalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            copyRadicalBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 90)
-            copyRadicalBtn.AutoButtonColor = true
-            canCopy = true
+end
+
+local function makeDraggableWithSave(btn)
+    if not btn then return end
+    applySavedPosition(btn)
+    local dragging = false
+    local dragStart, startPos
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = btn.Position
         end
-        return
-    end
-    countdownLabel.Text = formatCountdown(remaining)
+    end)
+    btn.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                                     startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            if dragging then
+                dragging = false
+                if btn.Name and btn.Name ~= "" then
+                    FloatPositions[btn.Name] = {
+                        XS = btn.Position.X.Scale, XO = btn.Position.X.Offset,
+                        YS = btn.Position.Y.Scale, YO = btn.Position.Y.Offset
+                    }
+                    saveFloatPositions()
+                end
+            end
+        end
+    end)
 end
 
-updateCountdown()
-countdownConn = RunService.Heartbeat:Connect(updateCountdown)
+loadFloatPositions()
+task.spawn(function() while task.wait(15) do saveFloatPositions() end end)
 
-copyRadicalBtn.MouseButton1Click:Connect(function()
-    if os.time() < RELEASE_UNIX then
-        copyRadicalBtn.Text = "ESPERA AL 24"
-        task.wait(1.2)
-        if os.time() < RELEASE_UNIX then
-            copyRadicalBtn.Text = "BLOQUEADO"
-        else
-            copyRadicalBtn.Text = "COPIAR RADICAL"
-        end
-        return
-    end
+-- ==========================================================
+-- 5) HELPERS UI
+-- ==========================================================
+local function getThemeColor()
+    local c = Color3.fromRGB(0, 200, 100)
     pcall(function()
-        if setclipboard then setclipboard(LOADSTRING_RADICAL) end
+        local t = Library.GetTheme and Library.GetTheme()
+        if t and t.Main then c = t.Main end
     end)
-    copyRadicalBtn.Text = "¡COPIADO!"
-    copyRadicalBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 60)
-    task.wait(1.5)
-    copyRadicalBtn.Text = "COPIAR RADICAL"
-    copyRadicalBtn.BackgroundColor3 = Color3.fromRGB(60, 40, 90)
+    return c
+end
+
+local function prepScroll(tabName)
+    local tab = Library.GetTab(tabName)
+    if not tab then return nil end
+    local scroll = Library.GetScroll(tab)
+    if not scroll then return nil end
+    if not scroll:FindFirstChildOfClass("UIListLayout") then
+        local l = Instance.new("UIListLayout")
+        l.Padding = UDim.new(0, 6)
+        l.SortOrder = Enum.SortOrder.LayoutOrder
+        l.Parent = scroll
+    end
+    if not scroll:FindFirstChildOfClass("UIPadding") then
+        local p = Instance.new("UIPadding")
+        p.PaddingTop = UDim.new(0, 8)
+        p.PaddingBottom = UDim.new(0, 8)
+        p.PaddingLeft = UDim.new(0, 8)
+        p.PaddingRight = UDim.new(0, 8)
+        p.Parent = scroll
+    end
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    return scroll
+end
+
+local function makeToggle(parent, label, get, set, order)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 0, 34)
+    f.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    f.BackgroundTransparency = 0.5
+    f.BorderSizePixel = 0
+    f.LayoutOrder = order or 1
+    f.Parent = parent
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(0.65, 0, 1, 0)
+    l.Position = UDim2.new(0, 10, 0, 0)
+    l.BackgroundTransparency = 1
+    l.Text = label
+    l.TextColor3 = Color3.fromRGB(240, 240, 240)
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 11
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = f
+
+    local themeColor = getThemeColor()
+    local switchBg = Instance.new("Frame")
+    switchBg.Size = UDim2.new(0, 44, 0, 22)
+    switchBg.Position = UDim2.new(1, -54, 0.5, -11)
+    switchBg.BackgroundColor3 = get() and themeColor or Color3.fromRGB(50, 50, 60)
+    switchBg.BorderSizePixel = 0
+    switchBg.Parent = f
+    Instance.new("UICorner", switchBg).CornerRadius = UDim.new(1, 0)
+
+    local switchGlow = Instance.new("UIStroke")
+    switchGlow.Thickness = 1.5
+    switchGlow.Color = themeColor
+    switchGlow.Transparency = get() and 0.2 or 0.9
+    switchGlow.Parent = switchBg
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 18, 0, 18)
+    knob.Position = get() and UDim2.new(0, 23, 0, 2) or UDim2.new(0, 2, 0, 2)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.BorderSizePixel = 0
+    knob.Parent = switchBg
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local knobShadow = Instance.new("UIStroke")
+    knobShadow.Thickness = 1
+    knobShadow.Color = Color3.fromRGB(0, 0, 0)
+    knobShadow.Transparency = 0.7
+    knobShadow.Parent = knob
+
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0, 44, 0, 22)
+    b.Position = UDim2.new(1, -54, 0.5, -11)
+    b.BackgroundTransparency = 1
+    b.Text = ""
+    b.Parent = f
+
+    local function update()
+        local on = get()
+        local col = getThemeColor()
+        TweenService:Create(knob, TweenInfo.new(0.18), {
+            Position = on and UDim2.new(0, 23, 0, 2) or UDim2.new(0, 2, 0, 2)
+        }):Play()
+        TweenService:Create(switchBg, TweenInfo.new(0.18), {
+            BackgroundColor3 = on and col or Color3.fromRGB(50, 50, 60)
+        }):Play()
+        TweenService:Create(switchGlow, TweenInfo.new(0.18), {
+            Transparency = on and 0.2 or 0.9,
+            Color = col
+        }):Play()
+    end
+
+    local db = false
+    local function toggle()
+        if db then return end
+        db = true
+        pcall(function() set(not get()) end)
+        update()
+        task.wait(0.15)
+        db = false
+    end
+
+    b.MouseButton1Down:Connect(toggle)
+    b.TouchTap:Connect(toggle)
+    update()
+    return b, update
+end
+
+local function makeSlider(parent, label, min, max, step, get, set, order)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 0, 48)
+    f.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    f.BackgroundTransparency = 0.5
+    f.BorderSizePixel = 0
+    f.LayoutOrder = order or 1
+    f.Parent = parent
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -20, 0, 16)
+    lbl.Position = UDim2.new(0, 10, 0, 4)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = Color3.fromRGB(240, 240, 240)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 10
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = f
+
+    local val = Instance.new("TextLabel")
+    val.Size = UDim2.new(1, -20, 0, 16)
+    val.Position = UDim2.new(0, 10, 0, 4)
+    val.BackgroundTransparency = 1
+    val.Text = tostring(get())
+    val.TextColor3 = Color3.fromRGB(100, 200, 255)
+    val.Font = Enum.Font.GothamBold
+    val.TextSize = 10
+    val.TextXAlignment = Enum.TextXAlignment.Right
+    val.Parent = f
+
+    local minus = Instance.new("TextButton")
+    minus.Size = UDim2.new(0, 30, 0, 20)
+    minus.Position = UDim2.new(0, 10, 1, -24)
+    minus.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    minus.Text = "-"; minus.TextColor3 = Color3.fromRGB(255,255,255)
+    minus.Font = Enum.Font.GothamBold; minus.TextSize = 14
+    minus.BorderSizePixel = 0; minus.Parent = f
+    Instance.new("UICorner", minus).CornerRadius = UDim.new(0, 4)
+
+    local plus = Instance.new("TextButton")
+    plus.Size = UDim2.new(0, 30, 0, 20)
+    plus.Position = UDim2.new(1, -40, 1, -24)
+    plus.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    plus.Text = "+"; plus.TextColor3 = Color3.fromRGB(255,255,255)
+    plus.Font = Enum.Font.GothamBold; plus.TextSize = 14
+    plus.BorderSizePixel = 0; plus.Parent = f
+    Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 4)
+
+    local function upd(v)
+        v = math.clamp(v, min, max)
+        set(v); val.Text = tostring(v)
+    end
+    minus.MouseButton1Click:Connect(function() upd(get() - step) end)
+    plus.MouseButton1Click:Connect(function() upd(get() + step) end)
+    return val
+end
+
+-- ==========================================================
+-- 6) BOTONES FLOTANTES
+-- ==========================================================
+local FLOAT_ON     = Color3.fromRGB(0, 200, 80)
+local FLOAT_OFF    = Color3.fromRGB(60, 60, 65)
+local FLOAT_ON_S   = Color3.fromRGB(0, 255, 100)
+local FLOAT_OFF_S  = Color3.fromRGB(120, 120, 130)
+
+local floatRefreshers = {}
+
+local function createStateFloat(guiName, btnName, txt, pos, getState, toggleState)
+    for _, g in pairs(playerGui:GetChildren()) do
+        if g.Name == guiName then g:Destroy() end
+    end
+    local fg = Instance.new("ScreenGui")
+    fg.Name = guiName
+    fg.ResetOnSpawn = false
+    fg.DisplayOrder = 50
+    fg.IgnoreGuiInset = true
+    fg.Parent = playerGui
+
+    local b = Instance.new("TextButton")
+    b.Name = btnName
+    b.Size = UDim2.new(0, 55, 0, 40)
+    b.Position = pos
+    b.Text = txt
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    b.TextSize = 11
+    b.Font = Enum.Font.GothamBold
+    b.Active = true
+    b.Draggable = false
+    b.Parent = fg
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    local s = Instance.new("UIStroke", b)
+    s.Thickness = 1.5
+    s.Parent = b
+
+    local function uv()
+        if getState() then
+            b.BackgroundColor3 = FLOAT_ON
+            s.Color = FLOAT_ON_S
+        else
+            b.BackgroundColor3 = FLOAT_OFF
+            s.Color = FLOAT_OFF_S
+        end
+    end
+
+    makeDraggableWithSave(b)
+
+    local db = false
+    local function oc()
+        if db then return end
+        db = true
+        toggleState()
+        uv()
+        task.wait(0.15)
+        db = false
+    end
+
+    b.MouseButton1Click:Connect(oc)
+    b.TouchTap:Connect(oc)
+    uv()
+
+    table.insert(floatRefreshers, uv)
+    return fg, b, uv
+end
+
+local function destroyFloat(guiName)
+    for _, g in pairs(playerGui:GetChildren()) do
+        if g.Name == guiName then g:Destroy() end
+    end
+end
+
+local function CreateSABtn()
+    createStateFloat("LUAC_SilentAim_Floating", "LUAC_AimBtn", "AIM",
+        UDim2.new(0.82, -22, 0.70, 0),
+        function() return _G_SilentAimSkill end,
+        function() _G_SilentAimSkill = not _G_SilentAimSkill end)
+end
+
+local function CreateM1Btn()
+    createStateFloat("LUAC_DragonM1_Floating", "LUAC_M1Btn", "M1",
+        UDim2.new(0.82, -22, 0.78, 0),
+        function() return _G_DragonGunM1 end,
+        function() _G_DragonGunM1 = not _G_DragonGunM1 end)
+end
+
+local function CreateJumpBtn()
+    createStateFloat("LUAC_Jump_Floating", "LUAC_JumpBtn", "JUMP",
+        UDim2.new(0.85, 0, 0.5, 0),
+        function() return _G_SuperJumpActive end,
+        function() _G_SuperJumpActive = not _G_SuperJumpActive end)
+end
+
+local function CreateSangBtn()
+    createStateFloat("LUAC_Sang_Floating", "LUAC_SangBtn", "SANG",
+        UDim2.new(0.85, 0, 0.6, 0),
+        function() return _G_SanguineActive end,
+        function() _G_SanguineActive = not _G_SanguineActive end)
+end
+
+task.spawn(function()
+    while task.wait(0.3) do
+        for _, f in ipairs(floatRefreshers) do pcall(f) end
+    end
 end)
 
-local loadingBless = false
-loadBlessBtn.MouseButton1Click:Connect(function()
-    if loadingBless then return end
-    loadingBless = true
-    loadBlessBtn.Text = "CARGANDO..."
-    loadBlessBtn.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
+-- ==========================================================
+-- 7) ESTADO (variables _G_ globales de verdad)
+-- ==========================================================
+local HUB_CONFIG = {
+    WalkSpeed = 16, WalkSpeedEnabled = false,
+    InfiniteJump = false, AntiAFK = true,
+    DashEnabled = false, DashDistance = 1
+}
 
-    task.spawn(function()
-        local ok, code = pcall(function() return game:HttpGet(BLESS_URL) end)
-        if not ok or not code or code == "" then
-            loadBlessBtn.Text = "ERROR AL CARGAR"
-            loadBlessBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-            task.wait(2)
-            loadBlessBtn.Text = "CARGAR BLESS"
-            loadBlessBtn.BackgroundColor3 = Color3.fromRGB(40, 90, 60)
-            loadingBless = false
-            return
-        end
+_G_SilentAimSkill         = false
+_G_SilentAimTargetPlayers = false
+_G_SilentAimTargetMobs    = false
+_G_DragonGunM1            = false
+_G_GhostAttack            = false
+_G_AutoKen                = false
+_G_SuperJumpActive        = false
+_G_SanguineActive         = false
 
-        local fn, err = loadstring(code)
-        if not fn then
-            loadBlessBtn.Text = "ERROR DE COMPILACION"
-            loadBlessBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-            warn("BLESS HUB error: " .. tostring(err))
-            task.wait(2)
-            loadBlessBtn.Text = "CARGAR BLESS"
-            loadBlessBtn.BackgroundColor3 = Color3.fromRGB(40, 90, 60)
-            loadingBless = false
-            return
-        end
+local fakeKorbloxEnabled  = false
+local fakeHeadlessEnabled = false
+local SoruInfinitoEnabled = false
+local SoruAimbotEnabled   = false
+local PortalSoruEnabled   = false
+local soruMaxDist         = 1000
+local FastFlag            = { Enabled = false }
 
-        loadBlessBtn.Text = "EJECUTANDO..."
-        task.wait(0.2)
+local ESP     = { Enabled=false, ShowName=true, ShowLevel=true, ShowDistance=true, ShowHP=true }
+local CamLock = { PlayerEnabled=false, NpcEnabled=false, Smoothness=0.4 }
 
-        local ok2, err2 = pcall(fn)
-        if not ok2 then
-            warn("BLESS HUB runtime error: " .. tostring(err2))
-            loadBlessBtn.Text = "ERROR"
-            loadBlessBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-            task.wait(2)
-        end
+-- ==========================================================
+-- 8) CONFIG GUARDADA
+-- ==========================================================
+local function saveConfig()
+    if not _writefile then return end
+    local data = {
+        HUB_CONFIG = HUB_CONFIG,
+        SilentAim = _G_SilentAimSkill,
+        SilentAimPlayers = _G_SilentAimTargetPlayers,
+        SilentAimMobs = _G_SilentAimTargetMobs,
+        DragonGunM1 = _G_DragonGunM1,
+        GhostAttack = _G_GhostAttack,
+        AutoKen = _G_AutoKen,
+        SuperJump = _G_SuperJumpActive,
+        Sanguine = _G_SanguineActive,
+        FakeKorblox = fakeKorbloxEnabled,
+        FakeHeadless = fakeHeadlessEnabled,
+        SoruInfinito = SoruInfinitoEnabled,
+        SoruAimbot = SoruAimbotEnabled,
+        PortalSoru = PortalSoruEnabled,
+        SoruMaxDist = soruMaxDist,
+        ESP = ESP,
+        CamLock = { PlayerEnabled = CamLock.PlayerEnabled, NpcEnabled = CamLock.NpcEnabled, Smoothness = CamLock.Smoothness },
+        FastFlag = FastFlag.Enabled
+    }
+    local ok, enc = pcall(function() return HttpService:JSONEncode(data) end)
+    if ok and enc then pcall(function() _writefile(CONFIG_FILE, enc) end) end
+end
 
-        loadBlessBtn.Text = "CARGAR BLESS"
-        loadBlessBtn.BackgroundColor3 = Color3.fromRGB(40, 90, 60)
-        loadingBless = false
+local function loadConfig()
+    if not (_isfile and _readfile) then return end
+    local exists = false
+    pcall(function() exists = _isfile(CONFIG_FILE) end)
+    if not exists then return end
+    local raw; pcall(function() raw = _readfile(CONFIG_FILE) end)
+    if not raw or raw == "" then return end
+    local ok, data = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not ok or not data then return end
+
+    if data.HUB_CONFIG then
+        for k, v in pairs(data.HUB_CONFIG) do HUB_CONFIG[k] = v end
+    end
+    if data.SilentAim ~= nil then _G_SilentAimSkill = data.SilentAim end
+    if data.SilentAimPlayers ~= nil then _G_SilentAimTargetPlayers = data.SilentAimPlayers end
+    if data.SilentAimMobs ~= nil then _G_SilentAimTargetMobs = data.SilentAimMobs end
+    if data.DragonGunM1 ~= nil then _G_DragonGunM1 = data.DragonGunM1 end
+    if data.GhostAttack ~= nil then _G_GhostAttack = data.GhostAttack end
+    if data.AutoKen ~= nil then _G_AutoKen = data.AutoKen end
+    if data.SuperJump ~= nil then _G_SuperJumpActive = data.SuperJump end
+    if data.Sanguine ~= nil then _G_SanguineActive = data.Sanguine end
+    if data.FakeKorblox ~= nil then fakeKorbloxEnabled = data.FakeKorblox end
+    if data.FakeHeadless ~= nil then fakeHeadlessEnabled = data.FakeHeadless end
+    if data.SoruInfinito ~= nil then SoruInfinitoEnabled = data.SoruInfinito end
+    if data.SoruAimbot ~= nil then SoruAimbotEnabled = data.SoruAimbot end
+    if data.PortalSoru ~= nil then PortalSoruEnabled = data.PortalSoru end
+    if data.SoruMaxDist ~= nil then soruMaxDist = data.SoruMaxDist end
+    if data.ESP then for k, v in pairs(data.ESP) do ESP[k] = v end end
+    if data.CamLock then
+        if data.CamLock.PlayerEnabled ~= nil then CamLock.PlayerEnabled = data.CamLock.PlayerEnabled end
+        if data.CamLock.NpcEnabled ~= nil then CamLock.NpcEnabled = data.CamLock.NpcEnabled end
+        if data.CamLock.Smoothness ~= nil then CamLock.Smoothness = data.CamLock.Smoothness end
+    end
+    if data.FastFlag ~= nil then FastFlag.Enabled = data.FastFlag end
+end
+
+loadConfig()
+task.spawn(function() while task.wait(20) do saveConfig() end end)
+
+-- ==========================================================
+-- 9) BOOSTS (Sanguine Auto / DTalon Auto)
+-- ==========================================================
+local BoostConfig = {
+    SanguineAuto = {
+        Name = "Sanguine Auto", Color = Color3.fromRGB(180, 60, 255),
+        Enabled = false, Visible = false,
+        Power = 500, Duration = 0.30, MinCharge = 1.0,
+        AnimIDs = {"14418367908"}, AnimName = "GhoulZCharge",
+        SubWindow = nil, FloatGui = nil
+    },
+    DTalonAuto = {
+        Name = "DTalon Auto", Color = Color3.fromRGB(255, 100, 50),
+        Enabled = false, Visible = false,
+        Power = 500, Duration = 0.30, MinCharge = 1.0,
+        AnimIDs = {"18839089313"}, AnimName = "DTalon_ZCharge",
+        SubWindow = nil, FloatGui = nil
+    }
+}
+
+local function doConfigBoost(cfg)
+    local c = player.Character
+    if not c then return end
+    local hr = c:FindFirstChild("HumanoidRootPart")
+    local h  = c:FindFirstChildOfClass("Humanoid")
+    if not hr or not h then return end
+    local dr = workspace.CurrentCamera.CFrame.LookVector
+    h.PlatformStand = true
+    local a = Instance.new("Attachment", hr)
+    local lv = Instance.new("LinearVelocity", hr)
+    lv.MaxForce = 9999999
+    lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+    lv.VectorVelocity = dr * cfg.Power
+    lv.Attachment0 = a
+    task.delay(cfg.Duration, function()
+        if lv then lv:Destroy() end
+        if a then a:Destroy() end
+        if h then h.PlatformStand = false end
     end)
+end
+
+local boostConns = {}
+local function hookBoost(k, cfg)
+    if boostConns[k] then boostConns[k]:Disconnect(); boostConns[k] = nil end
+    if boostConns[k.."_res"] then boostConns[k.."_res"]:Disconnect(); boostConns[k.."_res"] = nil end
+    local function attach(c)
+        local h = c:WaitForChild("Humanoid", 5)
+        if not h then return end
+        local cn = h.AnimationPlayed:Connect(function(t)
+            if not cfg.Enabled then return end
+            local a = t.Animation
+            local id = a and tostring(a.AnimationId):match("%d+")
+            local n = a and a.Name or ""
+            local match = false
+            for _, x in ipairs(cfg.AnimIDs) do if id == x then match = true; break end end
+            if cfg.AnimName ~= "" and n == cfg.AnimName then match = true end
+            if not match then return end
+            local s = tick()
+            t.Stopped:Connect(function()
+                if not cfg.Enabled then return end
+                if (tick() - s) >= cfg.MinCharge then
+                    task.spawn(function() doConfigBoost(cfg) end)
+                end
+            end)
+        end)
+        boostConns[k] = cn
+    end
+    if player.Character then attach(player.Character) end
+    boostConns[k.."_res"] = player.CharacterAdded:Connect(attach)
+end
+
+local function unhookBoost(k)
+    if boostConns[k] then boostConns[k]:Disconnect(); boostConns[k] = nil end
+    if boostConns[k.."_res"] then boostConns[k.."_res"]:Disconnect(); boostConns[k.."_res"] = nil end
+end
+
+local function createBoostFloat(k, cfg, y)
+    for _, g in pairs(playerGui:GetChildren()) do
+        if g.Name == "BoostFloat_"..k then g:Destroy() end
+    end
+    local fg = Instance.new("ScreenGui")
+    fg.Name = "BoostFloat_"..k
+    fg.ResetOnSpawn = false
+    fg.DisplayOrder = 50
+    fg.IgnoreGuiInset = true
+    fg.Parent = playerGui
+
+    local b = Instance.new("TextButton")
+    b.Name = "BoostBtn_"..k
+    b.Size = UDim2.new(0, 55, 0, 40)
+    b.Position = UDim2.new(0.85, 0, y, 0)
+    b.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    b.Text = cfg.Name:gsub(" Auto", "")
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    b.TextSize = 9
+    b.Font = Enum.Font.GothamBold
+    b.Active = true
+    b.Draggable = false
+    b.Parent = fg
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    local s = Instance.new("UIStroke", b)
+    s.Color = Color3.fromRGB(120, 120, 120); s.Thickness = 1.5
+
+    local function uv()
+        if cfg.Enabled then
+            b.BackgroundColor3 = cfg.Color
+            s.Color = cfg.Color
+        else
+            b.BackgroundColor3 = Color3.fromRGB(80,80,80)
+            s.Color = Color3.fromRGB(120,120,120)
+        end
+    end
+    uv()
+    makeDraggableWithSave(b)
+
+    local db = false
+    local function tg()
+        if db then return end
+        db = true
+        cfg.Enabled = not cfg.Enabled
+        uv()
+        if cfg.Enabled then hookBoost(k, cfg) else unhookBoost(k) end
+        saveConfig()
+        task.wait(0.15)
+        db = false
+    end
+    b.MouseButton1Down:Connect(tg)
+    b.TouchTap:Connect(tg)
+    cfg.FloatGui = fg
+end
+
+local function createBoostSub(k, cfg, pg)
+    local S = Instance.new("Frame")
+    S.Name = "BoostSub_"..k
+    S.Size = UDim2.new(0, 300, 0, 300)
+    S.Position = UDim2.new(0.5, -150, 0.5, -150)
+    S.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    S.BorderSizePixel = 0
+    S.Visible = false
+    S.ZIndex = 50
+    S.Parent = pg
+    Instance.new("UICorner", S).CornerRadius = UDim.new(0, 12)
+    local ss = Instance.new("UIStroke", S)
+    ss.Color = cfg.Color; ss.Thickness = 2
+
+    local H = Instance.new("Frame")
+    H.Size = UDim2.new(1, 0, 0, 35)
+    H.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    H.ZIndex = 50; H.Parent = S
+    Instance.new("UICorner", H).CornerRadius = UDim.new(0, 12)
+
+    local HT = Instance.new("TextLabel")
+    HT.Size = UDim2.new(1, -50, 1, 0)
+    HT.Position = UDim2.new(0, 12, 0, 0)
+    HT.BackgroundTransparency = 1
+    HT.Text = cfg.Name.." - Config"
+    HT.TextColor3 = cfg.Color
+    HT.Font = Enum.Font.GothamBold; HT.TextSize = 13
+    HT.TextXAlignment = Enum.TextXAlignment.Left
+    HT.ZIndex = 50; HT.Parent = H
+
+    local HC = Instance.new("TextButton")
+    HC.Size = UDim2.new(0, 25, 0, 25)
+    HC.Position = UDim2.new(1, -30, 0, 5)
+    HC.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    HC.Text = "X"; HC.TextColor3 = Color3.fromRGB(255,255,255)
+    HC.Font = Enum.Font.GothamBold; HC.TextSize = 12
+    HC.ZIndex = 51; HC.Parent = H
+    Instance.new("UICorner", HC).CornerRadius = UDim.new(0, 6)
+    HC.MouseButton1Click:Connect(function() S.Visible = false end)
+
+    local B = Instance.new("Frame")
+    B.Size = UDim2.new(1, -16, 1, -50)
+    B.Position = UDim2.new(0, 8, 0, 42)
+    B.BackgroundTransparency = 1; B.ZIndex = 50; B.Parent = S
+    local BL = Instance.new("UIListLayout", B)
+    BL.Padding = UDim.new(0, 8)
+
+    local function mss(l, gv, sv, st, mn, mx, sfx)
+        local F = Instance.new("Frame")
+        F.Size = UDim2.new(1, 0, 0, 48)
+        F.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        F.ZIndex = 50; F.Parent = B
+        Instance.new("UICorner", F).CornerRadius = UDim.new(0, 6)
+
+        local L = Instance.new("TextLabel")
+        L.Size = UDim2.new(1, -80, 0, 18)
+        L.Position = UDim2.new(0, 10, 0, 3)
+        L.BackgroundTransparency = 1
+        L.Text = l
+        L.TextColor3 = Color3.fromRGB(210, 210, 210)
+        L.Font = Enum.Font.Gotham; L.TextSize = 11
+        L.TextXAlignment = Enum.TextXAlignment.Left
+        L.ZIndex = 51; L.Parent = F
+
+        local V = Instance.new("TextLabel")
+        V.Size = UDim2.new(0, 80, 0, 18)
+        V.Position = UDim2.new(1, -90, 0, 3)
+        V.BackgroundTransparency = 1
+        V.Text = tostring(gv())..(sfx or "")
+        V.TextColor3 = cfg.Color
+        V.Font = Enum.Font.GothamBold; V.TextSize = 11
+        V.ZIndex = 51; V.Parent = F
+
+        local Mi = Instance.new("TextButton")
+        Mi.Size = UDim2.new(0, 45, 0, 20)
+        Mi.Position = UDim2.new(0, 10, 0, 24)
+        Mi.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        Mi.Text = "-"; Mi.TextColor3 = Color3.fromRGB(255,255,255)
+        Mi.Font = Enum.Font.GothamBold; Mi.TextSize = 16
+        Mi.ZIndex = 51; Mi.Parent = F
+        Instance.new("UICorner", Mi).CornerRadius = UDim.new(0, 5)
+
+        local P = Instance.new("TextButton")
+        P.Size = UDim2.new(0, 45, 0, 20)
+        P.Position = UDim2.new(1, -55, 0, 24)
+        P.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        P.Text = "+"; P.TextColor3 = Color3.fromRGB(255,255,255)
+        P.Font = Enum.Font.GothamBold; P.TextSize = 16
+        P.ZIndex = 51; P.Parent = F
+        Instance.new("UICorner", P).CornerRadius = UDim.new(0, 5)
+
+        local function up(v)
+            v = math.clamp(v, mn, mx)
+            sv(v); V.Text = tostring(v)..(sfx or "")
+            saveConfig()
+        end
+        Mi.MouseButton1Click:Connect(function() up(gv() - st) end)
+        P.MouseButton1Click:Connect(function() up(gv() + st) end)
+    end
+
+    mss("Power", function() return cfg.Power end, function(v) cfg.Power = v end, 50, 50, 2000, "")
+    mss("Duration", function() return math.floor(cfg.Duration * 100) end, function(v) cfg.Duration = v / 100 end, 10, 10, 300, " cs")
+    mss("Min Charge", function() return math.floor(cfg.MinCharge * 10) end, function(v) cfg.MinCharge = v / 10 end, 1, 0, 50, "")
+    cfg.SubWindow = S
+end
+
+-- ==========================================================
+-- 10) LÓGICA DE FONDO
+-- ==========================================================
+task.spawn(function()
+    while task.wait(0.2) do
+        if HUB_CONFIG.WalkSpeedEnabled then
+            local c = player.Character
+            if c then
+                local h = c:FindFirstChildOfClass("Humanoid")
+                if h and h.WalkSpeed ~= HUB_CONFIG.WalkSpeed then
+                    h.WalkSpeed = HUB_CONFIG.WalkSpeed
+                end
+            end
+        end
+    end
 end)
 
-print("EVIL HUB: Aviso de retraso cargado.")
-print("Nuevo lanzamiento:", RELEASE_TEXT)
+task.spawn(function()
+    while task.wait(0.1) do
+        if HUB_CONFIG.DashEnabled then
+            pcall(function()
+                local c = player.Character
+                if c then
+                    if c:GetAttribute("DashLength") ~= HUB_CONFIG.DashDistance then
+                        c:SetAttribute("DashLength", HUB_CONFIG.DashDistance)
+                    end
+                    if c:GetAttribute("DashLengthAir") ~= HUB_CONFIG.DashDistance then
+                        c:SetAttribute("DashLengthAir", HUB_CONFIG.DashDistance)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if HUB_CONFIG.InfiniteJump then
+        local c = player.Character
+        local h = c and c:FindFirstChildOfClass("Humanoid")
+        if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(30) do
+        if HUB_CONFIG.AntiAFK then
+            pcall(function()
+                local vu = game:GetService("VirtualUser")
+                vu:CaptureController()
+                vu:ClickButton2(Vector2.new(0, 0))
+            end)
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if SoruInfinitoEnabled and player.Character then
+            pcall(function()
+                player.Character:SetAttribute("FlashstepCooldown", 1)
+            end)
+        end
+    end
+end)
+
+-- Soru Aimbot
+local SoruMouse = player:GetMouse()
+do
+    local ok, mt = pcall(getrawmetatable, game)
+    if ok and mt then
+        local oi = mt.__index
+        local on = mt.__namecall
+        local function ic()
+            if checkcaller then return checkcaller() end
+            return false
+        end
+        local sc = pcall(setreadonly, mt, false)
+        if sc then
+            mt.__index = function(self, key)
+                if not ic() and self == SoruMouse and (key == "Hit" or key == "Target") and SoruAimbotEnabled then
+                    local mh = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    if mh then
+                        local cl, cd = nil, math.huge
+                        for _, p in ipairs(Players:GetPlayers()) do
+                            if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                                local h = p.Character:FindFirstChildOfClass("Humanoid")
+                                if h and h.Health > 0 then
+                                    local d = (p.Character.HumanoidRootPart.Position - mh.Position).Magnitude
+                                    if d < cd and d <= (soruMaxDist or 1000) then
+                                        cd = d; cl = p.Character
+                                    end
+                                end
+                            end
+                        end
+                        if cl then
+                            local eh = cl:FindFirstChild("HumanoidRootPart")
+                            if eh then
+                                if key == "Hit" then return CFrame.new(eh.Position) end
+                                if key == "Target" then return eh end
+                            end
+                        end
+                    end
+                end
+                return oi(self, key)
+            end
+            mt.__namecall = function(self, ...) return on(self, ...) end
+            pcall(setreadonly, mt, true)
+        end
+    end
+end
+
+-- Portal Soru
+local function isHoldingPortal()
+    local c = player.Character
+    if not c then return false end
+    local tl = c:FindFirstChildOfClass("Tool")
+    if tl then
+        local n = string.lower(tl.Name)
+        if string.find(n, "portal") or string.find(n, "door") then return true end
+    end
+    return false
+end
+
+local function equipPortal()
+    local c = player.Character
+    if not c then return nil end
+    local h = c:FindFirstChildOfClass("Humanoid")
+    if not h then return nil end
+    local tl = c:FindFirstChild("Portal-Portal") or c:FindFirstChild("Portal Fruit") or c:FindFirstChild("Portal") or c:FindFirstChild("Door")
+    if not tl then
+        local bp = player:FindFirstChild("Backpack")
+        if bp then
+            for _, t in ipairs(bp:GetChildren()) do
+                local n = string.lower(t.Name)
+                if string.find(n, "portal") or string.find(n, "door") then
+                    h:EquipTool(t); tl = t; task.wait(0.1); break
+                end
+            end
+        end
+    end
+    return tl
+end
+
+local function doPortalCombo()
+    if not isHoldingPortal() then equipPortal(); task.wait(0.08) end
+    if not isHoldingPortal() then return end
+    local function pk(kc)
+        VirtualInputManager:SendKeyEvent(true, kc, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, kc, false, game)
+    end
+    pk(Enum.KeyCode.X); task.wait(0.15); pk(Enum.KeyCode.Z)
+end
+
+local FL_NAMES = {"FlashStepRegular","FlashStepDraco","FlashStep","Flashstep","Soru"}
+local FL_IDS = {"17555632156","18461649274","616006778","616010882","5403485593","5403491911"}
+local function isFlash(t)
+    for _, n in ipairs(FL_NAMES) do
+        if string.find(string.lower(t.Name), string.lower(n)) then return true end
+    end
+    local id = t.Animation and t.Animation.AnimationId:match("%d+") or ""
+    for _, f in ipairs(FL_IDS) do
+        if id == f then return true end
+    end
+    return false
+end
+
+local function monitorPortal(c)
+    local h = c:WaitForChild("Humanoid", 5)
+    if not h then return end
+    h.AnimationPlayed:Connect(function(t)
+        if PortalSoruEnabled and isFlash(t) then
+            task.spawn(doPortalCombo)
+        end
+    end)
+end
+
+player.CharacterAdded:Connect(monitorPortal)
+if player.Character then monitorPortal(player.Character) end
+
+-- CamLock
+RunService.RenderStepped:Connect(function()
+    if CamLock.PlayerEnabled or CamLock.NpcEnabled then
+        local cam = workspace.CurrentCamera
+        local target = nil
+        if CamLock.PlayerEnabled then
+            local mh = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if mh then
+                local cd = math.huge
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= player and p.Character then
+                        local hr = p.Character:FindFirstChild("HumanoidRootPart")
+                        local h  = p.Character:FindFirstChildOfClass("Humanoid")
+                        if hr and h and h.Health > 0 then
+                            local d = (hr.Position - mh.Position).Magnitude
+                            if d < cd then cd = d; target = hr end
+                        end
+                    end
+                end
+            end
+        end
+        if not target and CamLock.NpcEnabled then
+            local mh = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if mh then
+                local en = workspace:FindFirstChild("Enemies")
+                if en then
+                    local cd = math.huge
+                    for _, e in ipairs(en:GetChildren()) do
+                        if e:IsA("Model") then
+                            local hr = e:FindFirstChild("HumanoidRootPart")
+                            local h  = e:FindFirstChildOfClass("Humanoid")
+                            if hr and h and h.Health > 0 then
+                                local d = (hr.Position - mh.Position).Magnitude
+                                if d < cd then cd = d; target = hr end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        if target then
+            cam.CFrame = cam.CFrame:Lerp(
+                CFrame.lookAt(cam.CFrame.Position, target.Position),
+                CamLock.Smoothness
+            )
+        end
+    end
+end)
+
+-- ==========================================================
+-- 11) INYECCIÓN A LOS TABS
+-- ==========================================================
+
+-- COMBAT
+local combatScroll = prepScroll("Combat")
+if combatScroll then
+    makeToggle(combatScroll, "Target Players",
+        function() return _G_SilentAimTargetPlayers end,
+        function(v) _G_SilentAimTargetPlayers = v; saveConfig() end, 1)
+
+    makeToggle(combatScroll, "Target NPCs",
+        function() return _G_SilentAimTargetMobs end,
+        function(v) _G_SilentAimTargetMobs = v; saveConfig() end, 2)
+
+    makeToggle(combatScroll, "Silent AIM",
+        function() return _G_SilentAimSkill end,
+        function(v)
+            _G_SilentAimSkill = v
+            if v then CreateSABtn() else destroyFloat("LUAC_SilentAim_Floating") end
+            saveConfig()
+        end, 3)
+
+    makeToggle(combatScroll, "Auto M1 (Gun)",
+        function() return _G_DragonGunM1 end,
+        function(v)
+            _G_DragonGunM1 = v
+            if v then CreateM1Btn() else destroyFloat("LUAC_DragonM1_Floating") end
+            saveConfig()
+        end, 4)
+
+    makeToggle(combatScroll, "Fast Attack",
+        function() return _G_GhostAttack end,
+        function(v) _G_GhostAttack = v; saveConfig() end, 5)
+
+    makeToggle(combatScroll, "Auto Ken",
+        function() return _G_AutoKen end,
+        function(v) _G_AutoKen = v; saveConfig() end, 6)
+end
+
+-- GLITCH
+local glitchScroll = prepScroll("Glitch")
+if glitchScroll then
+    makeToggle(glitchScroll, "Jump Button",
+        function() return _G_SuperJumpActive end,
+        function(v)
+            _G_SuperJumpActive = v
+            if v then CreateJumpBtn() else destroyFloat("LUAC_Jump_Floating") end
+            saveConfig()
+        end, 1)
+
+    makeToggle(glitchScroll, "Sanguine Manual",
+        function() return _G_SanguineActive end,
+        function(v)
+            _G_SanguineActive = v
+            if v then CreateSangBtn() else destroyFloat("LUAC_Sang_Floating") end
+            saveConfig()
+        end, 2)
+
+    local pg = Library and Library._GuiParent or (playerGui:FindFirstChild("AHKUI") or playerGui)
+    for k, cfg in pairs(BoostConfig) do
+        pcall(function() createBoostSub(k, cfg, pg) end)
+    end
+
+    makeToggle(glitchScroll, "Sanguine Auto",
+        function() return BoostConfig.SanguineAuto.Visible end,
+        function(v)
+            BoostConfig.SanguineAuto.Visible = v
+            if v then
+                BoostConfig.SanguineAuto.Enabled = false
+                createBoostFloat("SanguineAuto", BoostConfig.SanguineAuto, 0.65)
+            else
+                BoostConfig.SanguineAuto.Enabled = false
+                unhookBoost("SanguineAuto")
+                if BoostConfig.SanguineAuto.FloatGui then BoostConfig.SanguineAuto.FloatGui:Destroy(); BoostConfig.SanguineAuto.FloatGui = nil end
+            end
+            saveConfig()
+        end, 3)
+
+    makeToggle(glitchScroll, "DTalon Auto",
+        function() return BoostConfig.DTalonAuto.Visible end,
+        function(v)
+            BoostConfig.DTalonAuto.Visible = v
+            if v then
+                BoostConfig.DTalonAuto.Enabled = false
+                createBoostFloat("DTalonAuto", BoostConfig.DTalonAuto, 0.75)
+            else
+                BoostConfig.DTalonAuto.Enabled = false
+                unhookBoost("DTalonAuto")
+                if BoostConfig.DTalonAuto.FloatGui then BoostConfig.DTalonAuto.FloatGui:Destroy(); BoostConfig.DTalonAuto.FloatGui = nil end
+            end
+            saveConfig()
+        end, 4)
+end
+
+-- SORU
+local soruScroll = prepScroll("Soru")
+if soruScroll then
+    makeToggle(soruScroll, "Soru Infinito",
+        function() return SoruInfinitoEnabled end,
+        function(v)
+            SoruInfinitoEnabled = v
+            if v and player.Character then
+                pcall(function()
+                    player.Character:SetAttribute("FlashstepCooldown", 1)
+                end)
+            end
+            saveConfig()
+        end, 1)
+
+    makeToggle(soruScroll, "Soru Aimbot (TP)",
+        function() return SoruAimbotEnabled end,
+        function(v) SoruAimbotEnabled = v; saveConfig() end, 2)
+
+    makeToggle(soruScroll, "Portal Soru X+Z",
+        function() return PortalSoruEnabled end,
+        function(v) PortalSoruEnabled = v; saveConfig() end, 3)
+
+    makeSlider(soruScroll, "Max Dist", 100, 5000, 250,
+        function() return soruMaxDist end,
+        function(v) soruMaxDist = v; saveConfig() end, 4)
+end
+
+-- MISC
+local miscScroll = prepScroll("Misc")
+if miscScroll then
+    makeSlider(miscScroll, "WalkSpeed", 16, 200, 5,
+        function() return HUB_CONFIG.WalkSpeed end,
+        function(v) HUB_CONFIG.WalkSpeed = v; saveConfig() end, 1)
+
+    makeToggle(miscScroll, "WalkSpeed ON",
+        function() return HUB_CONFIG.WalkSpeedEnabled end,
+        function(v) HUB_CONFIG.WalkSpeedEnabled = v; saveConfig() end, 2)
+
+    makeToggle(miscScroll, "Infinite Jump",
+        function() return HUB_CONFIG.InfiniteJump end,
+        function(v) HUB_CONFIG.InfiniteJump = v; saveConfig() end, 3)
+
+    makeToggle(miscScroll, "Dash",
+        function() return HUB_CONFIG.DashEnabled end,
+        function(v) HUB_CONFIG.DashEnabled = v; saveConfig() end, 4)
+
+    makeSlider(miscScroll, "Dash Distance", 1, 300, 10,
+        function() return HUB_CONFIG.DashDistance end,
+        function(v) HUB_CONFIG.DashDistance = v; saveConfig() end, 5)
+
+    makeToggle(miscScroll, "Anti-AFK",
+        function() return HUB_CONFIG.AntiAFK end,
+        function(v) HUB_CONFIG.AntiAFK = v; saveConfig() end, 6)
+
+    makeToggle(miscScroll, "Fast Flag",
+        function() return FastFlag.Enabled end,
+        function(v) FastFlag.Enabled = v; saveConfig() end, 7)
+
+    makeToggle(miscScroll, "ESP Master",
+        function() return ESP.Enabled end,
+        function(v) ESP.Enabled = v; saveConfig() end, 8)
+
+    makeToggle(miscScroll, "ESP Name",
+        function() return ESP.ShowName end,
+        function(v) ESP.ShowName = v; saveConfig() end, 9)
+
+    makeToggle(miscScroll, "ESP Level",
+        function() return ESP.ShowLevel end,
+        function(v) ESP.ShowLevel = v; saveConfig() end, 10)
+
+    makeToggle(miscScroll, "ESP Distance",
+        function() return ESP.ShowDistance end,
+        function(v) ESP.ShowDistance = v; saveConfig() end, 11)
+
+    makeToggle(miscScroll, "ESP HP",
+        function() return ESP.ShowHP end,
+        function(v) ESP.ShowHP = v; saveConfig() end, 12)
+
+    makeToggle(miscScroll, "CamLock Players",
+        function() return CamLock.PlayerEnabled end,
+        function(v) CamLock.PlayerEnabled = v; saveConfig() end, 13)
+
+    makeToggle(miscScroll, "CamLock NPCs",
+        function() return CamLock.NpcEnabled end,
+        function(v) CamLock.NpcEnabled = v; saveConfig() end, 14)
+end
+
+-- APPEARANCE
+local appearScroll = prepScroll("Appearance")
+if appearScroll then
+    makeToggle(appearScroll, "Fake Korblox",
+        function() return fakeKorbloxEnabled end,
+        function(v)
+            fakeKorbloxEnabled = v
+            local c = player.Character
+            if c then
+                if v then
+                    local rl = c:FindFirstChild("RightUpperLeg")
+                    local rl2= c:FindFirstChild("RightLowerLeg")
+                    local rf = c:FindFirstChild("RightFoot")
+                    if rl then
+                        rl.Transparency = 1
+                        for _,cc in pairs(rl:GetChildren()) do
+                            if cc:IsA("SpecialMesh") then cc:Destroy() end
+                        end
+                        local m = Instance.new("SpecialMesh")
+                        m.MeshId = "rbxassetid://139607718"
+                        m.TextureId = "rbxassetid://139607673"
+                        m.Parent = rl
+                    end
+                    if rl2 then rl2.Transparency = 1 end
+                    if rf  then rf.Transparency  = 1 end
+                else
+                    for _, n in ipairs({"RightUpperLeg","RightLowerLeg","RightFoot",
+                                        "LeftUpperLeg","LeftLowerLeg","LeftFoot"}) do
+                        local p = c:FindFirstChild(n)
+                        if p then p.Transparency = 0 end
+                    end
+                end
+            end
+            saveConfig()
+        end, 1)
+
+    makeToggle(appearScroll, "Fake Headless",
+        function() return fakeHeadlessEnabled end,
+        function(v)
+            fakeHeadlessEnabled = v
+            local c = player.Character
+            if not c then return end
+            local hd = c:FindFirstChild("Head")
+            if not hd then return end
+            if v then
+                hd.Transparency = 1
+                local fa = hd:FindFirstChild("face")
+                if fa then fa.Transparency = 1 end
+                for _, o in pairs(c:GetChildren()) do
+                    if o:IsA("Accessory") then
+                        local hl = o:FindFirstChild("Handle")
+                        if hl then
+                            hl.Transparency = 1
+                            for _, s in pairs(hl:GetDescendants()) do
+                                if s:IsA("BasePart") or s:IsA("Decal") or s:IsA("Texture") then
+                                    s.Transparency = 1
+                                end
+                            end
+                        end
+                    end
+                end
+            else
+                hd.Transparency = 0
+                local fa = hd:FindFirstChild("face")
+                if fa then fa.Transparency = 0 end
+            end
+            saveConfig()
+        end, 2)
+end
+
+-- ==========================================================
+-- 12) RESTAURAR BOTONES FLOTANTES AL CARGAR
+-- ==========================================================
+task.spawn(function()
+    task.wait(1)
+    if _G_SilentAimSkill then CreateSABtn() end
+    if _G_DragonGunM1 then CreateM1Btn() end
+    if _G_SuperJumpActive then CreateJumpBtn() end
+    if _G_SanguineActive then CreateSangBtn() end
+    if BoostConfig.SanguineAuto.Visible then createBoostFloat("SanguineAuto", BoostConfig.SanguineAuto, 0.65) end
+    if BoostConfig.DTalonAuto.Visible then createBoostFloat("DTalonAuto", BoostConfig.DTalonAuto, 0.75) end
+end)
+
+-- ==========================================================
+-- 13) NOTIFICACIÓN FINAL
+-- ==========================================================
+if Library.ShowNotif then
+    pcall(function()
+        Library.ShowNotif("LUA+C", "Cargado correctamente ✅")
+    end)
+end
+
+print("LUA+C: cargado completo con botones flotantes + guardado.")
